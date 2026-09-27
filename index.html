@@ -8,8 +8,8 @@
 :root { --bg:#1c1c1c; --fg:#d8d8d8; --hl:#6fa8ff; --dim:#6a6a6a; }
 * { box-sizing: border-box; }
 html, body { margin:0; padding:0; height:100%; background:var(--bg); color:var(--fg);
-  font-family: ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
-  font-size:13px; user-select:none; overscroll-behavior:none; }
+  font-family:"Noto Sans SC","Microsoft YaHei","PingFang SC","Hiragino Sans GB",system-ui,sans-serif;
+  font-size:14px; user-select:none; overscroll-behavior:none; }
 button, input, textarea { font-family:inherit; font-size:inherit; background:var(--bg); color:var(--fg);
   border:1px solid var(--fg); border-radius:0; box-shadow:none; padding:3px 6px; }
 button { cursor:pointer; }
@@ -39,14 +39,14 @@ textarea { resize:none; width:100%; }
 .timeline-panel { flex:0 0 50%; max-width:50%; height:100%; display:grid;
   grid-template-columns:46px repeat(4,1fr); grid-auto-rows:1fr;
   border-top:1px solid var(--fg); border-left:1px solid var(--fg); border-right:1px solid var(--fg); }
-.hour-label { padding:2px 4px; color:var(--dim); font-size:10px; display:flex; align-items:flex-start;
+.hour-label { padding:3px 5px; color:var(--dim); font-size:12px; display:flex; align-items:flex-start;
   border-right:1px solid var(--fg); border-bottom:1px solid var(--fg); }
 .qblock { border-right:1px solid var(--fg); border-bottom:1px solid var(--fg); position:relative;
   overflow:hidden; padding:1px 3px; cursor:pointer; min-width:0;
   display:flex; flex-direction:column; justify-content:center; gap:0; }
-.qblock .rl { font-size:8px; line-height:1.15; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+.qblock .rl { font-size:11px; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   color:var(--fg); mix-blend-mode:difference; }
-.qblock .dot { position:absolute; top:1px; right:2px; font-size:7px; color:var(--fg); mix-blend-mode:difference; }
+.qblock .dot { position:absolute; top:2px; right:3px; font-size:9px; color:var(--fg); mix-blend-mode:difference; }
 
 .side-panel { flex:1 1 auto; min-width:0; display:flex; flex-direction:row; height:100%; }
 .side-col { flex:1; min-width:0; display:flex; flex-direction:column; border-right:1px solid var(--fg); }
@@ -57,18 +57,21 @@ textarea { resize:none; width:100%; }
 .empty-hint { color:var(--dim); padding:20px 6px 0; text-align:center; }
 
 /* ---------- project/area rows ---------- */
-.tag-row { display:flex; align-items:center; gap:6px; padding:4px 6px; cursor:pointer; }
+.tag-row { display:flex; align-items:center; gap:6px; padding:0; cursor:pointer; min-height:28px; }
+.tag-row .tag-name { flex:1; min-width:0; padding:4px 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .tag-row input[type="text"] { flex:1; min-width:0; border:none; border-bottom:1px solid var(--dim);
-  padding:2px; background:transparent; }
-.tag-row .del { flex:none; border:none; color:var(--dim); padding:0 4px; }
+  padding:4px 0; background:transparent; }
+.tag-row .edit, .tag-row .del { flex:none; border:none; color:var(--dim); padding:4px 6px; }
+.tag-row .edit:hover, .tag-row .del:hover { color:var(--bg); background:var(--fg); }
 .tag-row .del:hover { color:var(--bg); background:var(--fg); }
 .addbtn { width:100%; border:none; border-top:1px solid var(--fg); padding:6px; margin:0; }
 
 /* ---------- color swatch + popover ---------- */
-.cswatch { width:20px; height:20px; padding:0; flex:none; }
-.color-popover { background:var(--bg); border:1px solid var(--fg); padding:6px; width:160px; }
+.cswatch { width:28px; height:28px; padding:0; margin:0; border:none; flex:none; }
+.color-popover { background:var(--bg); border:1px solid var(--fg); padding:8px; width:210px; }
 .color-history { display:grid; grid-template-columns:repeat(6,18px); gap:3px; margin-top:6px; }
 .cswatch-opt { width:18px; height:18px; padding:0; border:1px solid var(--fg); cursor:pointer; }
+.cpop-native { width:100%; height:34px; padding:2px; margin-top:2px; }
 .cpop-hex-input { width:100%; margin-top:6px; }
 
 /* ---------- output list ---------- */
@@ -157,7 +160,6 @@ textarea { resize:none; width:100%; }
   </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@jaames/iro/dist/iro.min.js"></script>
 <script>
 /* ===================== i18n ===================== */
 const STRINGS = {
@@ -247,7 +249,7 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-/* ===================== color popover (iro.js based) ===================== */
+/* ===================== color popover ===================== */
 let activePopover = null;
 function pushColorHistory(c) {
   db.colorHistory = (db.colorHistory || []).filter(x => x.toLowerCase() !== c.toLowerCase());
@@ -264,66 +266,75 @@ function openColorPopover(anchorEl, initial, onChange) {
   const pop = document.createElement('div');
   pop.className = 'color-popover';
   pop.style.position = 'fixed';
-  pop.style.top = Math.min(rect.bottom + 4, window.innerHeight - 260) + 'px';
-  pop.style.left = Math.min(rect.left, window.innerWidth - 170) + 'px';
+  pop.style.top = Math.min(rect.bottom + 4, window.innerHeight - 180) + 'px';
+  pop.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
   pop.style.zIndex = 200;
   document.body.appendChild(pop);
 
   let finalColor = initial;
-  const wheelHost = document.createElement('div');
-  pop.appendChild(wheelHost);
-  let picker = null;
-  if (window.iro) {
-    picker = new iro.ColorPicker(wheelHost, {
-      width: 140, color: initial,
-      layout: [
-        { component: iro.ui.Wheel },
-        { component: iro.ui.Slider, options: { sliderType: 'value' } }
-      ]
-    });
-    picker.on('color:change', (color) => { finalColor = color.hexString; onChange(finalColor); });
-  } else {
-    const warn = document.createElement('div');
-    warn.style.color = 'var(--dim)'; warn.style.fontSize = '10px';
-    warn.textContent = '(取色器组件加载失败，可用下方 hex 输入)';
-    pop.appendChild(warn);
-  }
-
-  if ((db.colorHistory || []).length) {
-    const hist = document.createElement('div');
-    hist.className = 'color-history';
-    db.colorHistory.forEach(c => {
-      const s = document.createElement('button');
-      s.type = 'button'; s.className = 'cswatch-opt'; s.style.backgroundColor = c;
-      s.onclick = (e) => { e.stopPropagation(); finalColor = c; if (picker) picker.color.hexString = c; onChange(c); };
-      hist.appendChild(s);
-    });
-    pop.appendChild(hist);
-  }
+  const native = document.createElement('input');
+  native.type = 'color';
+  native.value = /^#[0-9a-fA-F]{6}$/.test(initial) ? initial : '#000000';
+  native.className = 'cpop-native';
+  native.title = '选择颜色';
+  native.oninput = () => {
+    finalColor = native.value;
+    hexInput.value = finalColor;
+    onChange(finalColor);
+  };
+  pop.appendChild(native);
 
   const hexInput = document.createElement('input');
-  hexInput.type = 'text'; hexInput.value = initial; hexInput.className = 'cpop-hex-input';
+  hexInput.type = 'text';
+  hexInput.value = initial;
+  hexInput.className = 'cpop-hex-input';
   hexInput.placeholder = t('hexPlaceholder');
   hexInput.onclick = (e) => e.stopPropagation();
   hexInput.onchange = () => {
     if (/^#[0-9a-fA-F]{6}$/.test(hexInput.value)) {
       finalColor = hexInput.value;
-      if (picker) picker.color.hexString = finalColor;
+      native.value = finalColor;
       onChange(finalColor);
     }
   };
   pop.appendChild(hexInput);
 
+  if ((db.colorHistory || []).length) {
+    const hist = document.createElement('div');
+    hist.className = 'color-history';
+    db.colorHistory.forEach(c => {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = 'cswatch-opt';
+      sw.style.backgroundColor = c;
+      sw.onclick = (e) => {
+        e.stopPropagation();
+        finalColor = c;
+        native.value = c;
+        hexInput.value = c;
+        onChange(c);
+      };
+      hist.appendChild(sw);
+    });
+    pop.appendChild(hist);
+  }
+
   function outsideClose(e) {
-    if (!pop.contains(e.target) && e.target !== anchorEl) { document.removeEventListener('click', outsideClose); closeColorPopover(); }
+    if (!pop.contains(e.target) && e.target !== anchorEl) {
+      document.removeEventListener('click', outsideClose);
+      closeColorPopover();
+    }
   }
   setTimeout(() => document.addEventListener('click', outsideClose), 0);
 
-  activePopover = { finish: () => { pushColorHistory(finalColor); pop.remove(); } };
+  activePopover = {
+    finish: () => { pushColorHistory(finalColor); pop.remove(); }
+  };
 }
 function colorSwatch(initial, onChange) {
   const btn = document.createElement('button');
-  btn.type = 'button'; btn.className = 'cswatch';
+  btn.type = 'button';
+  btn.className = 'cswatch';
   btn.style.backgroundColor = initial;
   btn.onclick = (e) => {
     e.stopPropagation();
@@ -515,6 +526,35 @@ function renderSidePanel() {
   renderOutputNotesCol(items);
 }
 
+function startTagEdit(row, id, collection, nameEl) {
+  const item = collection[id];
+  if (!item) return;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = item.name;
+  input.setAttribute('aria-label', '编辑名称');
+  const editBtn = row.querySelector('.edit');
+  const finish = (save = true) => {
+    if (!row.contains(input)) return;
+    if (save) {
+      const value = input.value.trim();
+      if (value) item.name = value;
+    }
+    saveData();
+    renderTimeline();
+    renderSidePanel();
+  };
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  };
+  input.onblur = () => finish(true);
+  nameEl.replaceWith(input);
+  if (editBtn) editBtn.disabled = true;
+  input.focus();
+  input.select();
+}
+
 /* ---- PROJECT (registry always visible; toggling needs a selection) ---- */
 function renderProjectCol(items) {
   colProject.innerHTML = '';
@@ -538,11 +578,18 @@ function renderProjectCol(items) {
   Object.entries(db.projects).forEach(([id, p]) => {
     const row = document.createElement('div'); row.className = 'tag-row';
     if (items.length && activeSet.has(id)) row.style.boxShadow = `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.28)}`;
+
     const picker = colorSwatch(p.color, (c) => { p.color = c; saveData(); renderTimeline(); });
-    const name = document.createElement('input');
-    name.type = 'text'; name.value = p.name;
-    name.onclick = (e) => e.stopPropagation();
-    name.onchange = () => { p.name = name.value.trim() || p.name; saveData(); renderTimeline(); };
+    const name = document.createElement('span');
+    name.className = 'tag-name';
+    name.textContent = p.name;
+
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'edit';
+    edit.textContent = t('edit');
+    edit.onclick = (e) => { e.stopPropagation(); startTagEdit(row, id, db.projects, name); };
+
     const del = document.createElement('button');
     del.className = 'del'; del.textContent = '\u00d7';
     del.onclick = (e) => {
@@ -552,7 +599,8 @@ function renderProjectCol(items) {
       Object.keys(db.blocks).forEach(pruneIfEmpty);
       saveData(); renderAll();
     };
-    row.append(picker, name, del);
+
+    row.append(picker, name, edit, del);
     if (items.length) {
       row.addEventListener('click', (e) => {
         if (e.target !== row) return;
@@ -601,11 +649,18 @@ function renderAreaCol(items) {
   Object.entries(db.areas).forEach(([id, a]) => {
     const row = document.createElement('div'); row.className = 'tag-row';
     if (items.length && current === id) row.style.boxShadow = `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.28)}`;
+
     const picker = colorSwatch(a.color, (c) => { a.color = c; saveData(); renderTimeline(); });
-    const name = document.createElement('input');
-    name.type = 'text'; name.value = a.name;
-    name.onclick = (e) => e.stopPropagation();
-    name.onchange = () => { a.name = name.value.trim() || a.name; saveData(); renderTimeline(); };
+    const name = document.createElement('span');
+    name.className = 'tag-name';
+    name.textContent = a.name;
+
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = 'edit';
+    edit.textContent = t('edit');
+    edit.onclick = (e) => { e.stopPropagation(); startTagEdit(row, id, db.areas, name); };
+
     const del = document.createElement('button');
     del.className = 'del'; del.textContent = '\u00d7';
     del.onclick = (e) => {
@@ -615,7 +670,8 @@ function renderAreaCol(items) {
       Object.keys(db.blocks).forEach(pruneIfEmpty);
       saveData(); renderAll();
     };
-    row.append(picker, name, del);
+
+    row.append(picker, name, edit, del);
     if (items.length) {
       row.addEventListener('click', (e) => {
         if (e.target !== row) return;
