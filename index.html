@@ -15,6 +15,7 @@ button, input, textarea { font-family:inherit; font-size:inherit; background:var
 button { cursor:pointer; }
 button:hover { background:var(--fg); color:var(--bg); }
 button.active { background:var(--hl); color:var(--bg); border-color:var(--hl); }
+#viewTabs button.active { color:var(--fg); }
 button:disabled { opacity:.35; cursor:default; }
 button:disabled:hover { background:var(--bg); color:var(--fg); }
 textarea { resize:none; width:100%; }
@@ -24,21 +25,22 @@ textarea { resize:none; width:100%; }
 
 /* ---------- topbar: seamless segmented groups ---------- */
 .topbar { display:flex; align-items:stretch; border-bottom:1px solid var(--fg); flex:none; flex-wrap:wrap; }
-.topbar .title { font-weight:bold; letter-spacing:2px; padding:6px 12px; display:flex; align-items:center; }
-.btngroup { display:flex; align-items:stretch; border-left:1px solid var(--fg); }
+.topbar .title { font-weight:bold; letter-spacing:2px; padding:6px 12px; display:flex; align-items:center;
+  border-right:1px solid var(--fg); }
+.btngroup { display:flex; align-items:stretch; }
 .btngroup > button, .btngroup > span { border:none; border-right:1px solid var(--fg); border-radius:0;
   display:flex; align-items:center; padding:0 10px; margin:0; }
 .spacer { flex:1; }
-.themectl { display:flex; align-items:center; gap:6px; padding:0 10px; border-left:1px solid var(--fg); }
-.themectl label { color:var(--dim); font-size:13px; }
-.selInfo { display:flex; align-items:center; padding:0 10px; color:var(--dim); border-left:1px solid var(--fg); }
+.themectl { display:flex; align-items:stretch; border-left:1px solid var(--fg); }
+.themectl .themelabel { color:var(--dim); font-size:13px; display:flex; align-items:center; padding:0 6px; }
+.selInfo { display:flex; align-items:center; padding:0 10px; color:var(--dim); }
 
 /* ---------- main layout ---------- */
 .main { flex:1; display:flex; min-height:0; }
 
 .timeline-panel { flex:0 0 50%; max-width:50%; height:100%; display:grid;
   grid-template-columns:46px repeat(4,1fr); grid-auto-rows:1fr;
-  border-top:1px solid var(--fg); border-left:1px solid var(--fg); border-right:1px solid var(--fg); }
+  border-left:1px solid var(--fg); }
 .hour-label { padding:2px 4px; color:var(--dim); font-size:13px; display:flex; align-items:flex-start;
   border-right:1px solid var(--fg); border-bottom:1px solid var(--fg); }
 .qblock { border-right:1px solid var(--fg); border-bottom:1px solid var(--fg); position:relative;
@@ -68,10 +70,13 @@ textarea { resize:none; width:100%; }
 .tag-row .rowbtn { flex:none; border:none; border-left:1px solid var(--fg); color:var(--dim);
   padding:0 10px; border-radius:0; }
 .tag-row .rowbtn:hover { color:var(--bg); background:var(--fg); }
-.addbtn { width:100%; border:none; border-top:1px solid var(--fg); padding:8px; margin:0; }
+.addbtn { width:100%; border:none; border-top:1px solid var(--fg); border-bottom:1px solid var(--fg); padding:8px; margin:0; }
 
 /* ---------- color swatch + popover ---------- */
 .cswatch { width:20px; height:20px; padding:0; flex:none; }
+.themeswatch { width:26px; align-self:stretch; padding:0; margin:0; border:none;
+  border-left:1px solid var(--fg); border-right:1px solid var(--fg); border-radius:0; }
+.swatchhost { display:flex; align-self:stretch; }
 .color-popover { background:var(--bg); border:1px solid var(--fg); padding:6px; width:160px; }
 .color-history { display:grid; grid-template-columns:repeat(6,18px); gap:3px; margin-top:6px; }
 .cswatch-opt { width:18px; height:18px; padding:0; border:1px solid var(--fg); cursor:pointer; }
@@ -132,9 +137,9 @@ textarea { resize:none; width:100%; }
     <span class="selInfo" id="selInfo"></span>
     <div class="spacer"></div>
     <div class="themectl">
-      <label data-i="bg"></label><span id="themeBgHost"></span>
-      <label data-i="fg"></label><span id="themeFgHost"></span>
-      <label data-i="hl"></label><span id="themeHlHost"></span>
+      <span class="themelabel" data-i="bg"></span><span class="swatchhost" id="themeBgHost"></span>
+      <span class="themelabel" data-i="fg"></span><span class="swatchhost" id="themeFgHost"></span>
+      <span class="themelabel" data-i="hl"></span><span class="swatchhost" id="themeHlHost"></span>
     </div>
   </div>
 
@@ -171,7 +176,7 @@ const STRINGS = {
     today: '今天', clearData: '清空信息', deselect: '取消选择',
     bg: 'bg', fg: 'fg', hl: 'hl',
     mtProject: '项目', mtArea: '领域', mtOutput: '产出/备注',
-    headProject: 'PROJECT', headArea: 'AREA', headOutput: 'OUTPUT / NOTES',
+    headProject: 'PROJECT', headArea: 'AREA', headOutput: 'OUTPUT', headNotes: 'NOTES',
     emptyHint: '选中一个或多个时间块',
     selCount: (n) => `已选 ${n} 块`,
     mixed: '多选 · 不一致', edit: '编辑', merge: '合并',
@@ -347,6 +352,16 @@ function rowColorSwatch(initial, onChange) {
   };
   return btn;
 }
+function themeSwatch(initial, onChange) {
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'themeswatch';
+  btn.style.backgroundColor = initial;
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    openColorPopover(btn, initial, (c) => { btn.style.backgroundColor = c; onChange(c); });
+  };
+  return btn;
+}
 let editingId = null; // id of the project/area row currently in inline-edit mode
 
 function buildTagRow(id, obj, onColorChange, onNameChange, onDelete, isActive, onToggle) {
@@ -403,9 +418,9 @@ function setupThemeSwatches() {
   const fgHost = document.getElementById('themeFgHost');
   const hlHost = document.getElementById('themeHlHost');
   bgHost.innerHTML = ''; fgHost.innerHTML = ''; hlHost.innerHTML = '';
-  bgHost.appendChild(colorSwatch(db.theme.bg, c => { db.theme.bg = c; applyTheme(); saveData(); renderTimeline(); }));
-  fgHost.appendChild(colorSwatch(db.theme.fg, c => { db.theme.fg = c; applyTheme(); saveData(); renderTimeline(); }));
-  hlHost.appendChild(colorSwatch(db.theme.hl, c => { db.theme.hl = c; applyTheme(); saveData(); renderTimeline(); }));
+  bgHost.appendChild(themeSwatch(db.theme.bg, c => { db.theme.bg = c; applyTheme(); saveData(); renderTimeline(); }));
+  fgHost.appendChild(themeSwatch(db.theme.fg, c => { db.theme.fg = c; applyTheme(); saveData(); renderTimeline(); }));
+  hlHost.appendChild(themeSwatch(db.theme.hl, c => { db.theme.hl = c; applyTheme(); saveData(); renderTimeline(); }));
 }
 
 /* ===================== timeline render ===================== */
@@ -699,6 +714,9 @@ function renderOutputNotesCol(items) {
   // notes
   const noteVals = items.map(it => it.block ? it.block.notes || '' : '');
   const noteConsistent = !multi || noteVals.every(v => v === noteVals[0]);
+  const notesHead = document.createElement('div'); notesHead.className = 'side-col-head';
+  notesHead.innerHTML = `<span>${t('headNotes')}</span>`;
+  colOutput.appendChild(notesHead);
   const notesWrap = document.createElement('div'); notesWrap.className = 'notes-section';
   if (multi && !noteConsistent && !unlocked.notes) {
     const banner = document.createElement('div'); banner.className = 'mixed-banner';
