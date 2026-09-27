@@ -9,7 +9,7 @@
 * { box-sizing: border-box; }
 html, body { margin:0; padding:0; height:100%; background:var(--bg); color:var(--fg);
   font-family: ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",Menlo,sans-serif;
-  font-size:14px; user-select:none; overscroll-behavior:none; }
+  font-size:15px; user-select:none; overscroll-behavior:none; }
 button, input, textarea { font-family:inherit; font-size:inherit; background:var(--bg); color:var(--fg);
   border:1px solid var(--fg); border-radius:0; box-shadow:none; padding:3px 6px; }
 button { cursor:pointer; }
@@ -30,7 +30,7 @@ textarea { resize:none; width:100%; }
   display:flex; align-items:center; padding:0 10px; margin:0; }
 .spacer { flex:1; }
 .themectl { display:flex; align-items:center; gap:6px; padding:0 10px; border-left:1px solid var(--fg); }
-.themectl label { color:var(--dim); font-size:11px; }
+.themectl label { color:var(--dim); font-size:13px; }
 .selInfo { display:flex; align-items:center; padding:0 10px; color:var(--dim); border-left:1px solid var(--fg); }
 
 /* ---------- main layout ---------- */
@@ -39,14 +39,14 @@ textarea { resize:none; width:100%; }
 .timeline-panel { flex:0 0 50%; max-width:50%; height:100%; display:grid;
   grid-template-columns:46px repeat(4,1fr); grid-auto-rows:1fr;
   border-top:1px solid var(--fg); border-left:1px solid var(--fg); border-right:1px solid var(--fg); }
-.hour-label { padding:3px 5px; color:var(--dim); font-size:12px; display:flex; align-items:flex-start;
+.hour-label { padding:2px 4px; color:var(--dim); font-size:13px; display:flex; align-items:flex-start;
   border-right:1px solid var(--fg); border-bottom:1px solid var(--fg); }
 .qblock { border-right:1px solid var(--fg); border-bottom:1px solid var(--fg); position:relative;
   overflow:hidden; padding:1px 3px; cursor:pointer; min-width:0;
   display:flex; flex-direction:column; justify-content:center; gap:0; }
-.qblock .rl { font-size:11px; line-height:1.25; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+.qblock .rl { font-size:11px; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   color:var(--fg); mix-blend-mode:difference; }
-.qblock .dot { position:absolute; top:2px; right:3px; font-size:9px; color:var(--fg); mix-blend-mode:difference; }
+.qblock .dot { position:absolute; top:1px; right:2px; font-size:10px; color:var(--fg); mix-blend-mode:difference; }
 
 .side-panel { flex:1 1 auto; min-width:0; display:flex; flex-direction:row; height:100%; }
 .side-col { flex:1; min-width:0; display:flex; flex-direction:column; border-right:1px solid var(--fg); }
@@ -57,21 +57,24 @@ textarea { resize:none; width:100%; }
 .empty-hint { color:var(--dim); padding:20px 6px 0; text-align:center; }
 
 /* ---------- project/area rows ---------- */
-.tag-row { display:flex; align-items:center; gap:6px; padding:0; cursor:pointer; min-height:28px; }
-.tag-row .tag-name { flex:1; min-width:0; padding:4px 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.tag-row input[type="text"] { flex:1; min-width:0; border:none; border-bottom:1px solid var(--dim);
-  padding:4px 0; background:transparent; }
-.tag-row .edit, .tag-row .del { flex:none; border:none; color:var(--dim); padding:4px 6px; }
-.tag-row .edit:hover, .tag-row .del:hover { color:var(--bg); background:var(--fg); }
-.tag-row .del:hover { color:var(--bg); background:var(--fg); }
-.addbtn { width:100%; border:none; border-top:1px solid var(--fg); padding:6px; margin:0; }
+.tag-row { display:flex; align-items:stretch; padding:0; margin:0; cursor:pointer;
+  border-bottom:1px solid var(--fg); }
+.tag-row:last-of-type { border-bottom:none; }
+.tag-row .rowswatch { flex:none; width:30px; align-self:stretch; padding:0; margin:0;
+  border:none; border-right:1px solid var(--fg); border-radius:0; }
+.tag-row .namewrap { flex:1; min-width:0; display:flex; align-items:center; padding:6px 8px; }
+.tag-row .namewrap span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tag-row .namewrap input[type="text"] { flex:1; min-width:0; border:none; padding:0; background:transparent; }
+.tag-row .rowbtn { flex:none; border:none; border-left:1px solid var(--fg); color:var(--dim);
+  padding:0 10px; border-radius:0; }
+.tag-row .rowbtn:hover { color:var(--bg); background:var(--fg); }
+.addbtn { width:100%; border:none; border-top:1px solid var(--fg); padding:8px; margin:0; }
 
 /* ---------- color swatch + popover ---------- */
-.cswatch { width:28px; height:28px; padding:0; margin:0; border:none; flex:none; }
-.color-popover { background:var(--bg); border:1px solid var(--fg); padding:8px; width:210px; }
+.cswatch { width:20px; height:20px; padding:0; flex:none; }
+.color-popover { background:var(--bg); border:1px solid var(--fg); padding:6px; width:160px; }
 .color-history { display:grid; grid-template-columns:repeat(6,18px); gap:3px; margin-top:6px; }
 .cswatch-opt { width:18px; height:18px; padding:0; border:1px solid var(--fg); cursor:pointer; }
-.cpop-native { width:100%; height:34px; padding:2px; margin-top:2px; }
 .cpop-hex-input { width:100%; margin-top:6px; }
 
 /* ---------- output list ---------- */
@@ -84,10 +87,10 @@ textarea { resize:none; width:100%; }
 .notes-section textarea { flex:1; border:none; background:transparent; padding:8px; margin:0; }
 
 /* ---------- multi-select mixed state ---------- */
-.mixed-banner { color:var(--dim); font-size:11px; padding:6px; display:flex; justify-content:space-between;
+.mixed-banner { color:var(--dim); font-size:13px; padding:6px; display:flex; justify-content:space-between;
   align-items:center; border-bottom:1px solid var(--fg); }
 .mixed-banner .actions { display:flex; }
-.mixed-banner button { padding:1px 8px; font-size:11px; border:none; border-left:1px solid var(--fg); }
+.mixed-banner button { padding:2px 8px; font-size:13px; border:none; border-left:1px solid var(--fg); }
 .notes-list { display:flex; flex-direction:column; padding:6px; gap:6px; }
 .notes-list .note-item { border-top:1px solid var(--dim); padding-top:4px; white-space:pre-wrap; }
 .notes-list .note-item:first-child { border-top:none; padding-top:0; }
@@ -160,6 +163,7 @@ textarea { resize:none; width:100%; }
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@jaames/iro/dist/iro.min.js"></script>
 <script>
 /* ===================== i18n ===================== */
 const STRINGS = {
@@ -249,7 +253,7 @@ function hexToRgba(hex, alpha) {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-/* ===================== color popover ===================== */
+/* ===================== color popover (iro.js based) ===================== */
 let activePopover = null;
 function pushColorHistory(c) {
   db.colorHistory = (db.colorHistory || []).filter(x => x.toLowerCase() !== c.toLowerCase());
@@ -266,81 +270,124 @@ function openColorPopover(anchorEl, initial, onChange) {
   const pop = document.createElement('div');
   pop.className = 'color-popover';
   pop.style.position = 'fixed';
-  pop.style.top = Math.min(rect.bottom + 4, window.innerHeight - 180) + 'px';
-  pop.style.left = Math.min(rect.left, window.innerWidth - 220) + 'px';
+  pop.style.top = Math.min(rect.bottom + 4, window.innerHeight - 260) + 'px';
+  pop.style.left = Math.min(rect.left, window.innerWidth - 170) + 'px';
   pop.style.zIndex = 200;
   document.body.appendChild(pop);
 
   let finalColor = initial;
-  const native = document.createElement('input');
-  native.type = 'color';
-  native.value = /^#[0-9a-fA-F]{6}$/.test(initial) ? initial : '#000000';
-  native.className = 'cpop-native';
-  native.title = '选择颜色';
-  native.oninput = () => {
-    finalColor = native.value;
-    hexInput.value = finalColor;
-    onChange(finalColor);
-  };
-  pop.appendChild(native);
-
-  const hexInput = document.createElement('input');
-  hexInput.type = 'text';
-  hexInput.value = initial;
-  hexInput.className = 'cpop-hex-input';
-  hexInput.placeholder = t('hexPlaceholder');
-  hexInput.onclick = (e) => e.stopPropagation();
-  hexInput.onchange = () => {
-    if (/^#[0-9a-fA-F]{6}$/.test(hexInput.value)) {
-      finalColor = hexInput.value;
-      native.value = finalColor;
-      onChange(finalColor);
-    }
-  };
-  pop.appendChild(hexInput);
+  const wheelHost = document.createElement('div');
+  pop.appendChild(wheelHost);
+  let picker = null;
+  if (window.iro) {
+    picker = new iro.ColorPicker(wheelHost, {
+      width: 140, color: initial,
+      layout: [
+        { component: iro.ui.Box },
+        { component: iro.ui.Slider, options: { sliderType: 'hue' } }
+      ]
+    });
+    picker.on('color:change', (color) => { finalColor = color.hexString; onChange(finalColor); });
+  } else {
+    const warn = document.createElement('div');
+    warn.style.color = 'var(--dim)'; warn.style.fontSize = '10px';
+    warn.textContent = '(取色器组件加载失败，可用下方 hex 输入)';
+    pop.appendChild(warn);
+  }
 
   if ((db.colorHistory || []).length) {
     const hist = document.createElement('div');
     hist.className = 'color-history';
     db.colorHistory.forEach(c => {
-      const sw = document.createElement('button');
-      sw.type = 'button';
-      sw.className = 'cswatch-opt';
-      sw.style.backgroundColor = c;
-      sw.onclick = (e) => {
-        e.stopPropagation();
-        finalColor = c;
-        native.value = c;
-        hexInput.value = c;
-        onChange(c);
-      };
-      hist.appendChild(sw);
+      const s = document.createElement('button');
+      s.type = 'button'; s.className = 'cswatch-opt'; s.style.backgroundColor = c;
+      s.onclick = (e) => { e.stopPropagation(); finalColor = c; if (picker) picker.color.hexString = c; onChange(c); };
+      hist.appendChild(s);
     });
     pop.appendChild(hist);
   }
 
-  function outsideClose(e) {
-    if (!pop.contains(e.target) && e.target !== anchorEl) {
-      document.removeEventListener('click', outsideClose);
-      closeColorPopover();
+  const hexInput = document.createElement('input');
+  hexInput.type = 'text'; hexInput.value = initial; hexInput.className = 'cpop-hex-input';
+  hexInput.placeholder = t('hexPlaceholder');
+  hexInput.onclick = (e) => e.stopPropagation();
+  hexInput.onchange = () => {
+    if (/^#[0-9a-fA-F]{6}$/.test(hexInput.value)) {
+      finalColor = hexInput.value;
+      if (picker) picker.color.hexString = finalColor;
+      onChange(finalColor);
     }
+  };
+  pop.appendChild(hexInput);
+
+  function outsideClose(e) {
+    if (!pop.contains(e.target) && e.target !== anchorEl) { document.removeEventListener('click', outsideClose); closeColorPopover(); }
   }
   setTimeout(() => document.addEventListener('click', outsideClose), 0);
 
-  activePopover = {
-    finish: () => { pushColorHistory(finalColor); pop.remove(); }
-  };
+  activePopover = { finish: () => { pushColorHistory(finalColor); pop.remove(); } };
 }
 function colorSwatch(initial, onChange) {
   const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'cswatch';
+  btn.type = 'button'; btn.className = 'cswatch';
   btn.style.backgroundColor = initial;
   btn.onclick = (e) => {
     e.stopPropagation();
     openColorPopover(btn, initial, (c) => { btn.style.backgroundColor = c; onChange(c); });
   };
   return btn;
+}
+function rowColorSwatch(initial, onChange) {
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'rowswatch';
+  btn.style.backgroundColor = initial;
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    openColorPopover(btn, initial, (c) => { btn.style.backgroundColor = c; onChange(c); });
+  };
+  return btn;
+}
+let editingId = null; // id of the project/area row currently in inline-edit mode
+
+function buildTagRow(id, obj, onColorChange, onNameChange, onDelete, isActive, onToggle) {
+  const row = document.createElement('div'); row.className = 'tag-row';
+  if (isActive) row.style.boxShadow = `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.28)}`;
+  const swatch = rowColorSwatch(obj.color, onColorChange);
+
+  const nameWrap = document.createElement('div'); nameWrap.className = 'namewrap';
+  if (editingId === id) {
+    const input = document.createElement('input');
+    input.type = 'text'; input.value = obj.name;
+    input.onclick = (e) => e.stopPropagation();
+    const commit = () => { onNameChange(input.value); editingId = null; renderAll(); };
+    input.onblur = commit;
+    input.onkeydown = (e) => {
+      if (e.key === 'Enter') input.blur();
+      if (e.key === 'Escape') { editingId = null; renderAll(); }
+    };
+    nameWrap.appendChild(input);
+    setTimeout(() => { input.focus(); input.select(); }, 0);
+  } else {
+    const span = document.createElement('span'); span.textContent = obj.name;
+    nameWrap.appendChild(span);
+  }
+  if (onToggle && editingId !== id) {
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.rowswatch, .rowbtn, input')) return;
+      onToggle();
+    });
+  }
+
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button'; editBtn.className = 'rowbtn'; editBtn.textContent = '\u270e';
+  editBtn.onclick = (e) => { e.stopPropagation(); editingId = id; renderAll(); };
+
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button'; delBtn.className = 'rowbtn'; delBtn.textContent = '\u00d7';
+  delBtn.onclick = (e) => { e.stopPropagation(); onDelete(); };
+
+  row.append(swatch, nameWrap, editBtn, delBtn);
+  return row;
 }
 
 /* ===================== theme ===================== */
@@ -526,35 +573,6 @@ function renderSidePanel() {
   renderOutputNotesCol(items);
 }
 
-function startTagEdit(row, id, collection, nameEl) {
-  const item = collection[id];
-  if (!item) return;
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.value = item.name;
-  input.setAttribute('aria-label', '编辑名称');
-  const editBtn = row.querySelector('.edit');
-  const finish = (save = true) => {
-    if (!row.contains(input)) return;
-    if (save) {
-      const value = input.value.trim();
-      if (value) item.name = value;
-    }
-    saveData();
-    renderTimeline();
-    renderSidePanel();
-  };
-  input.onkeydown = (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-  };
-  input.onblur = () => finish(true);
-  nameEl.replaceWith(input);
-  if (editBtn) editBtn.disabled = true;
-  input.focus();
-  input.select();
-}
-
 /* ---- PROJECT (registry always visible; toggling needs a selection) ---- */
 function renderProjectCol(items) {
   colProject.innerHTML = '';
@@ -576,45 +594,27 @@ function renderProjectCol(items) {
   }
 
   Object.entries(db.projects).forEach(([id, p]) => {
-    const row = document.createElement('div'); row.className = 'tag-row';
-    if (items.length && activeSet.has(id)) row.style.boxShadow = `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.28)}`;
-
-    const picker = colorSwatch(p.color, (c) => { p.color = c; saveData(); renderTimeline(); });
-    const name = document.createElement('span');
-    name.className = 'tag-name';
-    name.textContent = p.name;
-
-    const edit = document.createElement('button');
-    edit.type = 'button';
-    edit.className = 'edit';
-    edit.textContent = t('edit');
-    edit.onclick = (e) => { e.stopPropagation(); startTagEdit(row, id, db.projects, name); };
-
-    const del = document.createElement('button');
-    del.className = 'del'; del.textContent = '\u00d7';
-    del.onclick = (e) => {
-      e.stopPropagation();
-      delete db.projects[id];
-      Object.values(db.blocks).forEach(b => { b.projectIds = b.projectIds.filter(x => x !== id); });
-      Object.keys(db.blocks).forEach(pruneIfEmpty);
-      saveData(); renderAll();
-    };
-
-    row.append(picker, name, edit, del);
-    if (items.length) {
-      row.addEventListener('click', (e) => {
-        if (e.target !== row) return;
-        const turnOn = !activeSet.has(id);
-        items.forEach(it => {
-          const b = ensureBlock(it.key);
-          const has = b.projectIds.includes(id);
-          if (turnOn && !has) b.projectIds.push(id);
-          if (!turnOn && has) b.projectIds = b.projectIds.filter(x => x !== id);
-          pruneIfEmpty(it.key);
-        });
-        saveData(); renderAll();
+    const onToggle = items.length ? () => {
+      const turnOn = !activeSet.has(id);
+      items.forEach(it => {
+        const b = ensureBlock(it.key);
+        const has = b.projectIds.includes(id);
+        if (turnOn && !has) b.projectIds.push(id);
+        if (!turnOn && has) b.projectIds = b.projectIds.filter(x => x !== id);
+        pruneIfEmpty(it.key);
       });
-    }
+      saveData(); renderAll();
+    } : null;
+    const row = buildTagRow(id, p,
+      (c) => { p.color = c; saveData(); renderTimeline(); },
+      (v) => { p.name = v.trim() || p.name; saveData(); renderTimeline(); },
+      () => {
+        delete db.projects[id];
+        Object.values(db.blocks).forEach(b => { b.projectIds = b.projectIds.filter(x => x !== id); });
+        Object.keys(db.blocks).forEach(pruneIfEmpty);
+        saveData(); renderAll();
+      },
+      items.length && activeSet.has(id), onToggle);
     colProject.appendChild(row);
   });
   const add = document.createElement('button'); add.className = 'addbtn'; add.textContent = t('addProject');
@@ -647,39 +647,21 @@ function renderAreaCol(items) {
   }
 
   Object.entries(db.areas).forEach(([id, a]) => {
-    const row = document.createElement('div'); row.className = 'tag-row';
-    if (items.length && current === id) row.style.boxShadow = `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.28)}`;
-
-    const picker = colorSwatch(a.color, (c) => { a.color = c; saveData(); renderTimeline(); });
-    const name = document.createElement('span');
-    name.className = 'tag-name';
-    name.textContent = a.name;
-
-    const edit = document.createElement('button');
-    edit.type = 'button';
-    edit.className = 'edit';
-    edit.textContent = t('edit');
-    edit.onclick = (e) => { e.stopPropagation(); startTagEdit(row, id, db.areas, name); };
-
-    const del = document.createElement('button');
-    del.className = 'del'; del.textContent = '\u00d7';
-    del.onclick = (e) => {
-      e.stopPropagation();
-      delete db.areas[id];
-      Object.values(db.blocks).forEach(b => { if (b.areaId === id) b.areaId = null; });
-      Object.keys(db.blocks).forEach(pruneIfEmpty);
+    const onToggle = items.length ? () => {
+      const turnOn = current !== id;
+      items.forEach(it => { const b = ensureBlock(it.key); b.areaId = turnOn ? id : null; pruneIfEmpty(it.key); });
       saveData(); renderAll();
-    };
-
-    row.append(picker, name, edit, del);
-    if (items.length) {
-      row.addEventListener('click', (e) => {
-        if (e.target !== row) return;
-        const turnOn = current !== id;
-        items.forEach(it => { const b = ensureBlock(it.key); b.areaId = turnOn ? id : null; pruneIfEmpty(it.key); });
+    } : null;
+    const row = buildTagRow(id, a,
+      (c) => { a.color = c; saveData(); renderTimeline(); },
+      (v) => { a.name = v.trim() || a.name; saveData(); renderTimeline(); },
+      () => {
+        delete db.areas[id];
+        Object.values(db.blocks).forEach(b => { if (b.areaId === id) b.areaId = null; });
+        Object.keys(db.blocks).forEach(pruneIfEmpty);
         saveData(); renderAll();
-      });
-    }
+      },
+      items.length && current === id, onToggle);
     colArea.appendChild(row);
   });
   const add = document.createElement('button'); add.className = 'addbtn'; add.textContent = t('addArea');
