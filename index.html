@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TOPA</title>
+<style>
+:root { --bg:#1c1c1c; --fg:#d8d8d8; --hl:#6fa8ff; --dim:#6a6a6a; }
+* { box-sizing: border-box; }
+html, body { margin:0; padding:0; height:100%; background:var(--bg); color:var(--fg);
+  font-family: ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+  font-size:13px; user-select:none; overscroll-behavior:none; }
+button, input, textarea { font-family:inherit; font-size:inherit; background:var(--bg); color:var(--fg);
+  border:1px solid var(--fg); border-radius:0; box-shadow:none; padding:3px 6px; }
+button { cursor:pointer; }
+button:hover { background:var(--fg); color:var(--bg); }
+button.active { background:var(--hl); color:var(--bg); border-color:var(--hl); }
+button:disabled { opacity:.35; cursor:default; }
+button:disabled:hover { background:var(--bg); color:var(--fg); }
+textarea { resize:none; width:100%; }
+
+.app { height:100vh; height:100dvh; display:flex; flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
+
+/* ---------- topbar: seamless segmented groups ---------- */
+.topbar { display:flex; align-items:stretch; border-bottom:1px solid var(--fg); flex:none; flex-wrap:wrap; }
+.topbar .title { font-weight:bold; letter-spacing:2px; padding:6px 12px; display:flex; align-items:center; }
+.btngroup { display:flex; align-items:stretch; border-left:1px solid var(--fg); }
+.btngroup > button, .btngroup > span { border:none; border-right:1px solid var(--fg); border-radius:0;
+  display:flex; align-items:center; padding:0 10px; margin:0; }
+.spacer { flex:1; }
+.themectl { display:flex; align-items:center; gap:6px; padding:0 10px; border-left:1px solid var(--fg); }
+.themectl label { color:var(--dim); font-size:11px; }
+.selInfo { display:flex; align-items:center; padding:0 10px; color:var(--dim); border-left:1px solid var(--fg); }
+
+/* ---------- main layout ---------- */
+.main { flex:1; display:flex; min-height:0; }
+
+.timeline-panel { flex:0 0 50%; max-width:50%; height:100%; display:grid;
+  grid-template-columns:46px repeat(4,1fr); grid-auto-rows:1fr;
+  border-top:1px solid var(--fg); border-left:1px solid var(--fg); border-right:1px solid var(--fg); }
+.hour-label { padding:2px 4px; color:var(--dim); font-size:10px; display:flex; align-items:flex-start;
+  border-right:1px solid var(--fg); border-bottom:1px solid var(--fg); }
+.qblock { border-right:1px solid var(--fg); border-bottom:1px solid var(--fg); position:relative;
+  overflow:hidden; padding:1px 3px; cursor:pointer; min-width:0;
+  display:flex; flex-direction:column; justify-content:center; gap:0; }
+.qblock .rl { font-size:8px; line-height:1.15; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  color:var(--fg); mix-blend-mode:difference; }
+.qblock .dot { position:absolute; top:1px; right:2px; font-size:7px; color:var(--fg); mix-blend-mode:difference; }
+
+.side-panel { flex:1 1 auto; min-width:0; display:flex; flex-direction:row; height:100%; }
+.side-col { flex:1; min-width:0; display:flex; flex-direction:column; border-right:1px solid var(--fg); }
+.side-col:last-child { border-right:none; }
+.side-col-head { padding:5px 6px; border-bottom:1px solid var(--fg); flex:none; color:var(--dim);
+  display:flex; justify-content:space-between; align-items:center; }
+.side-col-body { flex:1; overflow-y:auto; padding:0; display:flex; flex-direction:column; }
+.empty-hint { color:var(--dim); padding:20px 6px 0; text-align:center; }
+
+/* ---------- project/area rows ---------- */
+.tag-row { display:flex; align-items:center; gap:6px; padding:4px 6px; cursor:pointer; }
+.tag-row input[type="text"] { flex:1; min-width:0; border:none; border-bottom:1px solid var(--dim);
+  padding:2px; background:transparent; }
+.tag-row .del { flex:none; border:none; color:var(--dim); padding:0 4px; }
+.tag-row .del:hover { color:var(--bg); background:var(--fg); }
+.addbtn { width:100%; border:none; border-top:1px solid var(--fg); padding:6px; margin:0; }
+
+/* ---------- color swatch + popover ---------- */
+.cswatch { width:20px; height:20px; padding:0; flex:none; }
+.color-popover { background:var(--bg); border:1px solid var(--fg); padding:6px; width:160px; }
+.color-history { display:grid; grid-template-columns:repeat(6,18px); gap:3px; margin-top:6px; }
+.cswatch-opt { width:18px; height:18px; padding:0; border:1px solid var(--fg); cursor:pointer; }
+.cpop-hex-input { width:100%; margin-top:6px; }
+
+/* ---------- output list ---------- */
+.output-list { flex:1; display:flex; flex-direction:column; border-bottom:1px solid var(--fg); min-height:0; }
+.output-list button { flex:1; border:none; border-bottom:1px solid var(--fg); width:100%; margin:0; min-height:0; }
+.output-list button:last-child { border-bottom:none; }
+
+/* ---------- notes ---------- */
+.notes-section { flex:1; display:flex; flex-direction:column; min-height:0; }
+.notes-section textarea { flex:1; border:none; background:transparent; padding:8px; margin:0; }
+
+/* ---------- multi-select mixed state ---------- */
+.mixed-banner { color:var(--dim); font-size:11px; padding:6px; display:flex; justify-content:space-between;
+  align-items:center; border-bottom:1px solid var(--fg); }
+.mixed-banner .actions { display:flex; }
+.mixed-banner button { padding:1px 8px; font-size:11px; border:none; border-left:1px solid var(--fg); }
+.notes-list { display:flex; flex-direction:column; padding:6px; gap:6px; }
+.notes-list .note-item { border-top:1px solid var(--dim); padding-top:4px; white-space:pre-wrap; }
+.notes-list .note-item:first-child { border-top:none; padding-top:0; }
+
+/* ---------- mobile ---------- */
+.mobile-tabs { display:none; border-bottom:1px solid var(--fg); flex:none; }
+.mobile-tabs button { flex:1; border:none; border-right:1px solid var(--fg); border-radius:0; }
+.mobile-tabs button:last-child { border-right:none; }
+
+@media (max-width:760px) {
+  .main { flex-direction:column; }
+  .timeline-panel { flex:1 1 auto; max-width:none; width:100%; }
+  .side-panel { flex:0 0 42vh; height:42vh; border-top:1px solid var(--fg); flex-direction:column; }
+  .side-col { border-right:none; display:none; }
+  .side-col.mobile-active { display:flex; }
+  .mobile-tabs { display:flex; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar" id="topbar">
+    <div class="title">TOPA</div>
+    <div class="btngroup" id="dateNav">
+      <button id="prevDay">&lt;</button>
+      <span id="dateLabel">----</span>
+      <button id="nextDay">&gt;</button>
+      <button id="todayBtn" data-i="today"></button>
+    </div>
+    <div class="btngroup" id="viewTabs">
+      <button data-view="project">P</button>
+      <button data-view="area">A</button>
+      <button data-view="output">O</button>
+    </div>
+    <div class="btngroup" id="actionGroup">
+      <button id="clearDataBtn" disabled data-i="clearData"></button>
+      <button id="deselectBtn" disabled data-i="deselect"></button>
+    </div>
+    <span class="selInfo" id="selInfo"></span>
+    <div class="spacer"></div>
+    <div class="themectl">
+      <label data-i="bg"></label><span id="themeBgHost"></span>
+      <label data-i="fg"></label><span id="themeFgHost"></span>
+      <label data-i="hl"></label><span id="themeHlHost"></span>
+    </div>
+  </div>
+
+  <div class="mobile-tabs" id="mobileTabs">
+    <button data-col="project" data-i="mtProject"></button>
+    <button data-col="area" data-i="mtArea"></button>
+    <button data-col="output" data-i="mtOutput"></button>
+  </div>
+
+  <div class="main">
+    <div class="timeline-panel" id="timelinePanel"></div>
+    <div class="side-panel">
+      <div class="side-col" data-col="project">
+        <div class="side-col-head"><span data-i="headProject"></span></div>
+        <div class="side-col-body" id="colProject"></div>
+      </div>
+      <div class="side-col" data-col="area">
+        <div class="side-col-head"><span data-i="headArea"></span></div>
+        <div class="side-col-body" id="colArea"></div>
+      </div>
+      <div class="side-col mobile-active" data-col="output">
+        <div class="side-col-head"><span data-i="headOutput"></span></div>
+        <div class="side-col-body" id="colOutput"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/iro.js/5.5.2/iro.min.js"></script>
+<script>
+/* ===================== i18n ===================== */
+const STRINGS = {
+  zh: {
+    today: '今天', clearData: '清空信息', deselect: '取消选择',
+    bg: 'bg', fg: 'fg', hl: 'hl',
+    mtProject: '项目', mtArea: '领域', mtOutput: '产出/备注',
+    headProject: 'PROJECT', headArea: 'AREA', headOutput: 'OUTPUT / NOTES',
+    emptyHint: '选中一个或多个时间块',
+    selCount: (n) => `已选 ${n} 块`,
+    mixed: '多选 · 不一致', edit: '编辑', merge: '合并',
+    confirmOverwrite: '将覆盖这些块本来的设置，是否继续？',
+    confirmClear: '将清空所选块上的全部标注，是否继续？',
+    addProject: '+ 新建项目', addArea: '+ 新建领域',
+    newProjectName: '新项目', newAreaName: '新领域',
+    hexPlaceholder: '#rrggbb'
+  }
+};
+const LOCALE = 'zh';
+function t(key, ...args) {
+  const v = STRINGS[LOCALE][key];
+  return typeof v === 'function' ? v(...args) : v;
+}
+document.querySelectorAll('[data-i]').forEach(el => { el.textContent = t(el.dataset.i); });
+
+/* ===================== data ===================== */
+const STORAGE_KEY = 'topa-data-v1';
+function uid(prefix) { return prefix + '_' + Math.random().toString(36).slice(2, 8); }
+const PALETTE = [
+  '#e57373','#f06292','#ba68c8','#9575cd','#7986cb','#64b5f6',
+  '#4fc3f7','#4dd0e1','#4db6ac','#81c784','#aed581','#dce775',
+  '#fff176','#ffd54f','#ffb74d','#ff8a65','#a1887f','#e0e0e0'
+];
+function randomColor() { return PALETTE[Math.floor(Math.random() * PALETTE.length)]; }
+
+function defaultData() {
+  return {
+    meta: { schemaVersion: 1, displayView: 'project' },
+    theme: { bg: '#1c1c1c', fg: '#d8d8d8', hl: '#6fa8ff' },
+    projects: {}, areas: {}, blocks: {}, colorHistory: []
+  };
+}
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultData();
+    const parsed = JSON.parse(raw);
+    const d = defaultData();
+    return Object.assign(d, parsed, {
+      meta: Object.assign(d.meta, parsed.meta),
+      theme: Object.assign(d.theme, parsed.theme),
+      projects: parsed.projects || {},
+      areas: parsed.areas || {},
+      blocks: parsed.blocks || {},
+      colorHistory: parsed.colorHistory || []
+    });
+  } catch (e) { console.error('load failed', e); return defaultData(); }
+}
+function saveData() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); } catch (e) { console.error('save failed', e); } }
+let db = loadData();
+
+/* ===================== state ===================== */
+function pad2(n) { return String(n).padStart(2, '0'); }
+function todayStr() { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+let currentDate = todayStr();
+let selected = new Set();
+let dragging = false, dragMoved = false, dragStartIdx = null, dragBaseSelection = new Set();
+let mobileActiveCol = 'output';
+let unlocked = { project: false, area: false, output: false, notes: false };
+
+function idxToKey(idx) { return blockKey(currentDate, Math.floor(idx / 4), idx % 4); }
+function blockKey(dateStr, hour, q) { return `${dateStr}-${pad2(hour)}-${q}`; }
+function getBlock(key) { return db.blocks[key] || null; }
+function ensureBlock(key) {
+  if (!db.blocks[key]) db.blocks[key] = { projectIds: [], areaId: null, output: null, notes: '' };
+  return db.blocks[key];
+}
+function pruneIfEmpty(key) {
+  const b = db.blocks[key];
+  if (!b) return;
+  if (b.projectIds.length === 0 && !b.areaId && b.output == null && !b.notes) delete db.blocks[key];
+}
+function hexToRgba(hex, alpha) {
+  let h = hex.replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/* ===================== color popover (iro.js based) ===================== */
+let activePopover = null;
+function pushColorHistory(c) {
+  db.colorHistory = (db.colorHistory || []).filter(x => x.toLowerCase() !== c.toLowerCase());
+  db.colorHistory.unshift(c);
+  if (db.colorHistory.length > 12) db.colorHistory.length = 12;
+  saveData();
+}
+function closeColorPopover() {
+  if (activePopover) { activePopover.finish(); activePopover = null; }
+}
+function openColorPopover(anchorEl, initial, onChange) {
+  closeColorPopover();
+  const rect = anchorEl.getBoundingClientRect();
+  const pop = document.createElement('div');
+  pop.className = 'color-popover';
+  pop.style.position = 'fixed';
+  pop.style.top = Math.min(rect.bottom + 4, window.innerHeight - 260) + 'px';
+  pop.style.left = Math.min(rect.left, window.innerWidth - 170) + 'px';
+  pop.style.zIndex = 200;
+  document.body.appendChild(pop);
+
+  let finalColor = initial;
+  const wheelHost = document.createElement('div');
+  pop.appendChild(wheelHost);
+  let picker = null;
+  if (window.iro) {
+    picker = new iro.ColorPicker(wheelHost, {
+      width: 140, color: initial,
+      layout: [
+        { component: iro.ui.Wheel },
+        { component: iro.ui.Slider, options: { sliderType: 'value' } }
+      ]
+    });
+    picker.on('color:change', (color) => { finalColor = color.hexString; onChange(finalColor); });
+  } else {
+    const warn = document.createElement('div');
+    warn.style.color = 'var(--dim)'; warn.style.fontSize = '10px';
+    warn.textContent = '(取色器组件加载失败，可用下方 hex 输入)';
+    pop.appendChild(warn);
+  }
+
+  if ((db.colorHistory || []).length) {
+    const hist = document.createElement('div');
+    hist.className = 'color-history';
+    db.colorHistory.forEach(c => {
+      const s = document.createElement('button');
+      s.type = 'button'; s.className = 'cswatch-opt'; s.style.backgroundColor = c;
+      s.onclick = (e) => { e.stopPropagation(); finalColor = c; if (picker) picker.color.hexString = c; onChange(c); };
+      hist.appendChild(s);
+    });
+    pop.appendChild(hist);
+  }
+
+  const hexInput = document.createElement('input');
+  hexInput.type = 'text'; hexInput.value = initial; hexInput.className = 'cpop-hex-input';
+  hexInput.placeholder = t('hexPlaceholder');
+  hexInput.onclick = (e) => e.stopPropagation();
+  hexInput.onchange = () => {
+    if (/^#[0-9a-fA-F]{6}$/.test(hexInput.value)) {
+      finalColor = hexInput.value;
+      if (picker) picker.color.hexString = finalColor;
+      onChange(finalColor);
+    }
+  };
+  pop.appendChild(hexInput);
+
+  function outsideClose(e) {
+    if (!pop.contains(e.target) && e.target !== anchorEl) { document.removeEventListener('click', outsideClose); closeColorPopover(); }
+  }
+  setTimeout(() => document.addEventListener('click', outsideClose), 0);
+
+  activePopover = { finish: () => { pushColorHistory(finalColor); pop.remove(); } };
+}
+function colorSwatch(initial, onChange) {
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'cswatch';
+  btn.style.backgroundColor = initial;
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    openColorPopover(btn, initial, (c) => { btn.style.backgroundColor = c; onChange(c); });
+  };
+  return btn;
+}
+
+/* ===================== theme ===================== */
+function applyTheme() {
+  document.documentElement.style.setProperty('--bg', db.theme.bg);
+  document.documentElement.style.setProperty('--fg', db.theme.fg);
+  document.documentElement.style.setProperty('--hl', db.theme.hl);
+}
+function outputColor(v) { return hexToRgba(db.theme.hl, 0.12 + (v / 9) * 0.75); }
+
+function setupThemeSwatches() {
+  const bgHost = document.getElementById('themeBgHost');
+  const fgHost = document.getElementById('themeFgHost');
+  const hlHost = document.getElementById('themeHlHost');
+  bgHost.innerHTML = ''; fgHost.innerHTML = ''; hlHost.innerHTML = '';
+  bgHost.appendChild(colorSwatch(db.theme.bg, c => { db.theme.bg = c; applyTheme(); saveData(); renderTimeline(); }));
+  fgHost.appendChild(colorSwatch(db.theme.fg, c => { db.theme.fg = c; applyTheme(); saveData(); renderTimeline(); }));
+  hlHost.appendChild(colorSwatch(db.theme.hl, c => { db.theme.hl = c; applyTheme(); saveData(); renderTimeline(); }));
+}
+
+/* ===================== timeline render ===================== */
+const timelinePanel = document.getElementById('timelinePanel');
+const dateLabel = document.getElementById('dateLabel');
+
+function renderTimeline() {
+  dateLabel.textContent = currentDate;
+  timelinePanel.innerHTML = '';
+  const view = db.meta.displayView;
+  let prevProjSig = undefined, prevAreaName = undefined, prevOutputVal = undefined;
+
+  for (let h = 0; h < 24; h++) {
+    const label = document.createElement('div');
+    label.className = 'hour-label';
+    label.textContent = pad2(h) + ':00';
+    timelinePanel.appendChild(label);
+
+    for (let q = 0; q < 4; q++) {
+      const idx = h * 4 + q;
+      const key = idxToKey(idx);
+      const b = getBlock(key);
+      const el = document.createElement('div');
+      el.className = 'qblock';
+      el.dataset.key = key; el.dataset.idx = idx;
+
+      if (b) {
+        if (view === 'project' && b.projectIds.length) {
+          const p = db.projects[b.projectIds[0]];
+          if (p) el.style.backgroundColor = hexToRgba(p.color, 0.35);
+        } else if (view === 'area' && b.areaId && db.areas[b.areaId]) {
+          el.style.backgroundColor = hexToRgba(db.areas[b.areaId].color, 0.35);
+        } else if (view === 'output' && b.output != null) {
+          el.style.backgroundColor = outputColor(b.output);
+        }
+      }
+      if (selected.has(key)) {
+        el.style.boxShadow = `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.35)}`;
+      }
+
+      // all three fields always shown as text, each independently suppressing consecutive repeats
+      const projNames = b ? b.projectIds.map(id => db.projects[id] && db.projects[id].name).filter(Boolean) : [];
+      const projSig = b ? projNames.join(',') : null;
+      if (b && projNames.length) {
+        const line = document.createElement('div'); line.className = 'rl';
+        line.textContent = (projSig !== prevProjSig) ? projNames.join('/') : '...';
+        el.appendChild(line);
+      }
+      prevProjSig = b ? projSig : undefined;
+
+      const areaName = (b && b.areaId && db.areas[b.areaId]) ? db.areas[b.areaId].name : null;
+      if (areaName) {
+        const line = document.createElement('div'); line.className = 'rl';
+        line.textContent = (areaName !== prevAreaName) ? areaName : '...';
+        el.appendChild(line);
+      }
+      prevAreaName = b ? areaName : undefined;
+
+      const outVal = (b && b.output != null) ? b.output : null;
+      if (outVal != null) {
+        const line = document.createElement('div'); line.className = 'rl';
+        line.textContent = (outVal !== prevOutputVal) ? ('#' + outVal) : '...';
+        el.appendChild(line);
+      }
+      prevOutputVal = b ? outVal : undefined;
+
+      if (b && b.notes) {
+        const dot = document.createElement('div'); dot.className = 'dot'; dot.textContent = '\u25CF';
+        el.appendChild(dot);
+      }
+
+      timelinePanel.appendChild(el);
+    }
+  }
+}
+
+/* ===================== selection & drag ===================== */
+function applySelectionHighlight() {
+  timelinePanel.querySelectorAll('.qblock').forEach(el => {
+    el.style.boxShadow = selected.has(el.dataset.key) ? `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.35)}` : '';
+  });
+}
+function computeRange(idxA, idxB) {
+  const lo = Math.min(idxA, idxB), hi = Math.max(idxA, idxB);
+  const s = new Set();
+  for (let i = lo; i <= hi; i++) s.add(idxToKey(i));
+  return s;
+}
+function clearSelection() {
+  selected = new Set();
+  unlocked = { project: false, area: false, output: false, notes: false };
+  renderAll();
+}
+
+timelinePanel.addEventListener('mousedown', (e) => {
+  const el = e.target.closest('.qblock');
+  if (!el) return;
+  e.preventDefault();
+  dragging = true; dragMoved = false;
+  dragStartIdx = +el.dataset.idx;
+  dragBaseSelection = new Set(selected);
+});
+document.addEventListener('mousemove', (e) => {
+  if (!dragging) return;
+  const elAt = document.elementFromPoint(e.clientX, e.clientY);
+  const qb = elAt && elAt.closest && elAt.closest('.qblock');
+  if (!qb || !timelinePanel.contains(qb)) return;
+  const idx = +qb.dataset.idx;
+  if (idx !== dragStartIdx) dragMoved = true;
+  if (dragMoved) {
+    const range = computeRange(dragStartIdx, idx);
+    selected = new Set([...dragBaseSelection, ...range]);
+    applySelectionHighlight();
+  }
+});
+document.addEventListener('mouseup', () => {
+  if (!dragging) return;
+  dragging = false;
+  if (!dragMoved) {
+    const key = idxToKey(dragStartIdx);
+    selected = new Set(dragBaseSelection);
+    if (selected.has(key)) selected.delete(key); else selected.add(key);
+    applySelectionHighlight();
+  }
+  unlocked = { project: false, area: false, output: false, notes: false };
+  renderSidePanel();
+});
+timelinePanel.addEventListener('contextmenu', (e) => { e.preventDefault(); clearSelection(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') clearSelection(); });
+document.getElementById('topbar').addEventListener('click', (e) => { if (e.target === e.currentTarget) clearSelection(); });
+
+/* ===================== side panel ===================== */
+const colProject = document.getElementById('colProject');
+const colArea = document.getElementById('colArea');
+const colOutput = document.getElementById('colOutput');
+const clearDataBtn = document.getElementById('clearDataBtn');
+const deselectBtn = document.getElementById('deselectBtn');
+const selInfo = document.getElementById('selInfo');
+
+function selectedBlocks() { return [...selected].map(k => ({ key: k, block: getBlock(k) })); }
+function setSign(arr) { return JSON.stringify([...new Set(arr)].sort()); }
+function confirmThen(msg, fn) { if (confirm(msg)) fn(); }
+
+function updateSelInfo() {
+  const has = selected.size > 0;
+  clearDataBtn.disabled = !has;
+  deselectBtn.disabled = !has;
+  selInfo.textContent = has ? t('selCount', selected.size) : '';
+}
+clearDataBtn.onclick = () => {
+  if (!selected.size) return;
+  confirmThen(t('confirmClear'), () => {
+    selected.forEach(key => { delete db.blocks[key]; });
+    unlocked = { project: false, area: false, output: false, notes: false };
+    saveData(); renderAll();
+  });
+};
+deselectBtn.onclick = () => clearSelection();
+
+function renderSidePanel() {
+  const items = selectedBlocks();
+  updateSelInfo();
+  renderProjectCol(items);
+  renderAreaCol(items);
+  renderOutputNotesCol(items);
+}
+
+/* ---- PROJECT (registry always visible; toggling needs a selection) ---- */
+function renderProjectCol(items) {
+  colProject.innerHTML = '';
+  const multi = items.length > 1;
+  let consistent = true, activeSet = new Set();
+  if (items.length) {
+    const sigs = items.map(it => setSign(it.block ? it.block.projectIds : []));
+    consistent = !multi || sigs.every(s => s === sigs[0]);
+    if (consistent) activeSet = new Set(items[0].block ? items[0].block.projectIds : []);
+  }
+  if (items.length && multi && !consistent && !unlocked.project) {
+    const banner = document.createElement('div'); banner.className = 'mixed-banner';
+    banner.innerHTML = `<span>${t('mixed')}</span><span class="actions">
+      <button id="pjEdit">${t('edit')}</button><button id="pjMerge">${t('merge')}</button></span>`;
+    colProject.appendChild(banner);
+    banner.querySelector('#pjEdit').onclick = () => confirmThen(t('confirmOverwrite'), () => { unlocked.project = true; renderSidePanel(); });
+    banner.querySelector('#pjMerge').onclick = () => confirmThen(t('confirmOverwrite'), () => mergeProjects(items));
+    return;
+  }
+
+  Object.entries(db.projects).forEach(([id, p]) => {
+    const row = document.createElement('div'); row.className = 'tag-row';
+    if (items.length && activeSet.has(id)) row.style.boxShadow = `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.28)}`;
+    const picker = colorSwatch(p.color, (c) => { p.color = c; saveData(); renderTimeline(); });
+    const name = document.createElement('input');
+    name.type = 'text'; name.value = p.name;
+    name.onclick = (e) => e.stopPropagation();
+    name.onchange = () => { p.name = name.value.trim() || p.name; saveData(); renderTimeline(); };
+    const del = document.createElement('button');
+    del.className = 'del'; del.textContent = '\u00d7';
+    del.onclick = (e) => {
+      e.stopPropagation();
+      delete db.projects[id];
+      Object.values(db.blocks).forEach(b => { b.projectIds = b.projectIds.filter(x => x !== id); });
+      Object.keys(db.blocks).forEach(pruneIfEmpty);
+      saveData(); renderAll();
+    };
+    row.append(picker, name, del);
+    if (items.length) {
+      row.addEventListener('click', (e) => {
+        if (e.target !== row) return;
+        const turnOn = !activeSet.has(id);
+        items.forEach(it => {
+          const b = ensureBlock(it.key);
+          const has = b.projectIds.includes(id);
+          if (turnOn && !has) b.projectIds.push(id);
+          if (!turnOn && has) b.projectIds = b.projectIds.filter(x => x !== id);
+          pruneIfEmpty(it.key);
+        });
+        saveData(); renderAll();
+      });
+    }
+    colProject.appendChild(row);
+  });
+  const add = document.createElement('button'); add.className = 'addbtn'; add.textContent = t('addProject');
+  add.onclick = () => { const id = uid('p'); db.projects[id] = { name: t('newProjectName'), color: randomColor() }; saveData(); renderSidePanel(); };
+  colProject.appendChild(add);
+}
+function mergeProjects(items) {
+  const union = new Set();
+  items.forEach(it => (it.block ? it.block.projectIds : []).forEach(id => union.add(id)));
+  items.forEach(it => { ensureBlock(it.key).projectIds = [...union]; });
+  unlocked.project = false; saveData(); renderAll();
+}
+
+/* ---- AREA ---- */
+function renderAreaCol(items) {
+  colArea.innerHTML = '';
+  const multi = items.length > 1;
+  let consistent = true, current = null;
+  if (items.length) {
+    const vals = items.map(it => it.block ? it.block.areaId : null);
+    consistent = !multi || vals.every(v => v === vals[0]);
+    if (consistent) current = vals[0];
+  }
+  if (items.length && multi && !consistent && !unlocked.area) {
+    const banner = document.createElement('div'); banner.className = 'mixed-banner';
+    banner.innerHTML = `<span>${t('mixed')}</span><span class="actions"><button id="arEdit">${t('edit')}</button></span>`;
+    colArea.appendChild(banner);
+    banner.querySelector('#arEdit').onclick = () => confirmThen(t('confirmOverwrite'), () => { unlocked.area = true; renderSidePanel(); });
+    return;
+  }
+
+  Object.entries(db.areas).forEach(([id, a]) => {
+    const row = document.createElement('div'); row.className = 'tag-row';
+    if (items.length && current === id) row.style.boxShadow = `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.28)}`;
+    const picker = colorSwatch(a.color, (c) => { a.color = c; saveData(); renderTimeline(); });
+    const name = document.createElement('input');
+    name.type = 'text'; name.value = a.name;
+    name.onclick = (e) => e.stopPropagation();
+    name.onchange = () => { a.name = name.value.trim() || a.name; saveData(); renderTimeline(); };
+    const del = document.createElement('button');
+    del.className = 'del'; del.textContent = '\u00d7';
+    del.onclick = (e) => {
+      e.stopPropagation();
+      delete db.areas[id];
+      Object.values(db.blocks).forEach(b => { if (b.areaId === id) b.areaId = null; });
+      Object.keys(db.blocks).forEach(pruneIfEmpty);
+      saveData(); renderAll();
+    };
+    row.append(picker, name, del);
+    if (items.length) {
+      row.addEventListener('click', (e) => {
+        if (e.target !== row) return;
+        const turnOn = current !== id;
+        items.forEach(it => { const b = ensureBlock(it.key); b.areaId = turnOn ? id : null; pruneIfEmpty(it.key); });
+        saveData(); renderAll();
+      });
+    }
+    colArea.appendChild(row);
+  });
+  const add = document.createElement('button'); add.className = 'addbtn'; add.textContent = t('addArea');
+  add.onclick = () => { const id = uid('a'); db.areas[id] = { name: t('newAreaName'), color: randomColor() }; saveData(); renderSidePanel(); };
+  colArea.appendChild(add);
+}
+
+/* ---- OUTPUT + NOTES (merged, blank without selection) ---- */
+function renderOutputNotesCol(items) {
+  colOutput.innerHTML = '';
+  if (!items.length) return;
+
+  const multi = items.length > 1;
+
+  // output
+  const outVals = items.map(it => it.block ? it.block.output : null);
+  const outConsistent = !multi || outVals.every(v => v === outVals[0]);
+  if (multi && !outConsistent && !unlocked.output) {
+    const banner = document.createElement('div'); banner.className = 'mixed-banner';
+    banner.innerHTML = `<span>${t('mixed')}</span><span class="actions"><button id="opEdit">${t('edit')}</button></span>`;
+    colOutput.appendChild(banner);
+    banner.querySelector('#opEdit').onclick = () => confirmThen(t('confirmOverwrite'), () => { unlocked.output = true; renderSidePanel(); });
+  } else {
+    const current = outVals[0];
+    const list = document.createElement('div'); list.className = 'output-list';
+    for (let v = 9; v >= 1; v--) {
+      const btn = document.createElement('button'); btn.textContent = v;
+      if (current === v) btn.classList.add('active');
+      btn.onclick = () => { items.forEach(it => { ensureBlock(it.key).output = v; }); saveData(); renderAll(); };
+      list.appendChild(btn);
+    }
+    colOutput.appendChild(list);
+  }
+
+  // notes
+  const noteVals = items.map(it => it.block ? it.block.notes || '' : '');
+  const noteConsistent = !multi || noteVals.every(v => v === noteVals[0]);
+  const notesWrap = document.createElement('div'); notesWrap.className = 'notes-section';
+  if (multi && !noteConsistent && !unlocked.notes) {
+    const banner = document.createElement('div'); banner.className = 'mixed-banner';
+    banner.innerHTML = `<span>${t('mixed')}</span><span class="actions">
+      <button id="ntEdit">${t('edit')}</button><button id="ntMerge">${t('merge')}</button></span>`;
+    notesWrap.appendChild(banner);
+    const list = document.createElement('div'); list.className = 'notes-list';
+    noteVals.filter(v => v).forEach(v => { const d = document.createElement('div'); d.className = 'note-item'; d.textContent = v; list.appendChild(d); });
+    notesWrap.appendChild(list);
+    banner.querySelector('#ntEdit').onclick = () => confirmThen(t('confirmOverwrite'), () => { unlocked.notes = true; renderSidePanel(); });
+    banner.querySelector('#ntMerge').onclick = () => confirmThen(t('confirmOverwrite'), () => mergeNotes(items));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.rows = 6; ta.value = noteVals[0] || '';
+    ta.oninput = () => { items.forEach(it => { const b = ensureBlock(it.key); b.notes = ta.value; pruneIfEmpty(it.key); }); saveData(); };
+    ta.onblur = () => renderTimeline();
+    notesWrap.appendChild(ta);
+  }
+  colOutput.appendChild(notesWrap);
+}
+function mergeNotes(items) {
+  const combined = items.map(it => it.block ? it.block.notes : '').filter(Boolean).join('\n');
+  items.forEach(it => { ensureBlock(it.key).notes = combined; });
+  unlocked.notes = false; saveData(); renderAll();
+}
+
+/* ===================== view tabs ===================== */
+const viewTabs = document.getElementById('viewTabs');
+viewTabs.addEventListener('click', (e) => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  db.meta.displayView = btn.dataset.view; saveData(); renderAll();
+});
+function syncViewTabs() { [...viewTabs.children].forEach(b => b.classList && b.classList.toggle('active', b.dataset.view === db.meta.displayView)); }
+
+/* ===================== date nav ===================== */
+function shiftDate(delta) {
+  const d = new Date(currentDate + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  currentDate = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  clearSelection();
+}
+document.getElementById('prevDay').addEventListener('click', () => shiftDate(-1));
+document.getElementById('nextDay').addEventListener('click', () => shiftDate(1));
+document.getElementById('todayBtn').addEventListener('click', () => { currentDate = todayStr(); clearSelection(); });
+
+/* ===================== mobile tabs ===================== */
+const mobileTabs = document.getElementById('mobileTabs');
+mobileTabs.addEventListener('click', (e) => {
+  const btn = e.target.closest('button'); if (!btn) return;
+  mobileActiveCol = btn.dataset.col; syncMobileTabs();
+});
+function syncMobileTabs() {
+  [...mobileTabs.children].forEach(b => b.classList.toggle('active', b.dataset.col === mobileActiveCol));
+  document.querySelectorAll('.side-col').forEach(c => c.classList.toggle('mobile-active', c.dataset.col === mobileActiveCol));
+}
+
+/* ===================== bootstrap ===================== */
+function seedIfEmpty() {
+  if (Object.keys(db.projects).length === 0) { const id = uid('p'); db.projects[id] = { name: '示例项目', color: randomColor() }; }
+  if (Object.keys(db.areas).length === 0) { const id = uid('a'); db.areas[id] = { name: '示例领域', color: randomColor() }; }
+}
+function renderAll() { syncViewTabs(); renderTimeline(); renderSidePanel(); syncMobileTabs(); }
+
+seedIfEmpty();
+applyTheme();
+setupThemeSwatches();
+renderAll();
+saveData();
+</script>
+</body>
+</html>
