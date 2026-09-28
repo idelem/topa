@@ -11,7 +11,7 @@
 * { box-sizing: border-box; }
 html, body { margin:0; padding:0; height:100%; background:var(--bg); color:var(--fg);
   font-family: ui-monospace,"SFMono-Regular",Consolas,"Liberation Mono",Menlo,sans-serif;
-  font-size:15px; user-select:none; overscroll-behavior:none; }
+  font-size:13px; user-select:none; overscroll-behavior:none; }
 button, input, textarea { font-family:inherit; font-size:inherit; background:var(--bg); color:var(--fg);
   border:1px solid var(--border-c); border-radius:0; box-shadow:none; padding:3px 6px; }
 button { cursor:pointer; }
@@ -434,32 +434,31 @@ const timelinePanel = document.getElementById('timelinePanel');
 const dateLabel = document.getElementById('dateLabel');
 const phInfo = document.getElementById('phInfo');
 
-// same project + same output value = one task; ph = sum over tasks of (task output / (projectBlocks / allProjectBlocks))
-// multi-project blocks count once per project (and once in the total)
+// task-based: a task = consecutive blocks sharing a project and the same output value
+// ph = sum over tasks of (task output * task block count * 0.25), each block being a quarter hour
+// multi-project blocks count in each of their projects' tasks
 function computeProductivityHours(dateStr) {
-  let total = 0;
-  const cnt = {}, tasks = {};
+  const runs = {}; // projectId -> { out, n } for the task currently running
+  let ph = 0;
+  const close = (id) => {
+    const r = runs[id];
+    if (r) { ph += r.out * r.n * 0.25; delete runs[id]; }
+  };
   for (let i = 0; i < 96; i++) {
     const b = getBlock(blockKey(dateStr, Math.floor(i / 4), i % 4));
-    if (!b) continue;
-    const ids = b.projectIds.filter(id => db.projects[id]);
-    if (!ids.length) continue;
-    total++;
-    const out = b.output == null ? 0 : b.output;
+    const ids = b ? b.projectIds.filter(id => db.projects[id]) : [];
+    const out = (b && b.output != null) ? b.output : 0;
+    Object.keys(runs).forEach(id => { if (!ids.includes(id)) close(id); });
     ids.forEach(id => {
-      cnt[id] = (cnt[id] || 0) + 1;
-      (tasks[id] = tasks[id] || new Set()).add(out);
+      const r = runs[id];
+      if (r && r.out === out) r.n++;
+      else { close(id); runs[id] = { out, n: 1 }; }
     });
   }
-  let ph = 0;
-  Object.keys(cnt).forEach(id => {
-    let taskSum = 0;
-    tasks[id].forEach(v => { taskSum += v; });
-    ph += taskSum / (cnt[id] / total);
-  });
+  Object.keys(runs).forEach(id => close(id));
   return ph;
 }
-function updatePH() { phInfo.textContent = t('ph', computeProductivityHours(currentDate).toFixed(1)); }
+function updatePH() { phInfo.textContent = t('ph', String(+computeProductivityHours(currentDate).toFixed(2))); }
 
 function renderTimeline() {
   dateLabel.textContent = currentDate;
