@@ -52,6 +52,7 @@ textarea { resize:none; width:100%; }
 .qblock .rl { font-size:11px; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   color:var(--fg); }
 .qblock .dot { position:absolute; top:1px; right:2px; font-size:10px; color:var(--fg); }
+.qblock.selected { outline:2px solid var(--hl); outline-offset:-2px; z-index:1; }
 
 .side-panel { flex:1 1 auto; min-width:0; display:flex; flex-direction:row; height:100%; }
 .side-col { flex:1; min-width:0; display:flex; flex-direction:column; border-right:1px solid var(--border-c); }
@@ -137,6 +138,7 @@ textarea { resize:none; width:100%; }
       <button id="clearDataBtn" disabled data-i="clearData"></button>
       <button id="deselectBtn" disabled data-i="deselect"></button>
     </div>
+    <div class="btngroup" id="phGroup"><span id="phInfo"></span></div>
     <span class="selInfo" id="selInfo"></span>
     <div class="spacer"></div>
     <div class="themectl">
@@ -182,6 +184,7 @@ const STRINGS = {
     headProject: 'PROJECT', headArea: 'AREA', headOutput: 'OUTPUT', headNotes: 'NOTES',
     emptyHint: '选中一个或多个时间块',
     selCount: (n) => `已选 ${n} 块`,
+    ph: (v) => `PH ${v}`,
     mixed: '多选 · 不一致', edit: '编辑', merge: '合并',
     confirmOverwrite: '将覆盖这些块本来的设置，是否继续？',
     confirmClear: '将清空所选块上的全部标注，是否继续？',
@@ -429,9 +432,30 @@ function setupThemeSwatches() {
 /* ===================== timeline render ===================== */
 const timelinePanel = document.getElementById('timelinePanel');
 const dateLabel = document.getElementById('dateLabel');
+const phInfo = document.getElementById('phInfo');
+
+// ph = sum over projects of sum(output / (projectBlocks / allProjectBlocks)); multi-project blocks count once per project
+function computeProductivityHours(dateStr) {
+  let total = 0;
+  const sum = {}, cnt = {};
+  for (let i = 0; i < 96; i++) {
+    const b = getBlock(blockKey(dateStr, Math.floor(i / 4), i % 4));
+    if (!b) continue;
+    const ids = b.projectIds.filter(id => db.projects[id]);
+    if (!ids.length) continue;
+    total++;
+    const out = b.output == null ? 0 : b.output;
+    ids.forEach(id => { sum[id] = (sum[id] || 0) + out; cnt[id] = (cnt[id] || 0) + 1; });
+  }
+  let ph = 0;
+  Object.keys(cnt).forEach(id => { ph += sum[id] / (cnt[id] / total); });
+  return ph;
+}
+function updatePH() { phInfo.textContent = t('ph', computeProductivityHours(currentDate).toFixed(1)); }
 
 function renderTimeline() {
   dateLabel.textContent = currentDate;
+  updatePH();
   timelinePanel.innerHTML = '';
   const view = db.meta.displayView;
   let prevProjSig = undefined, prevAreaName = undefined, prevOutputVal = undefined;
@@ -452,8 +476,9 @@ function renderTimeline() {
 
       if (b) {
         if (view === 'project' && b.projectIds.length) {
-          const p = db.projects[b.projectIds[0]];
-          if (p) el.style.backgroundColor = hexToRgba(p.color, 0.35);
+          const cols = b.projectIds.map(id => db.projects[id]).filter(Boolean).map(p => hexToRgba(p.color, 0.35));
+          if (cols.length === 1) el.style.backgroundColor = cols[0];
+          else if (cols.length > 1) el.style.backgroundImage = `linear-gradient(90deg, ${cols.join(', ')})`;
         } else if (view === 'area' && b.areaId && db.areas[b.areaId]) {
           el.style.backgroundColor = hexToRgba(db.areas[b.areaId].color, 0.35);
         } else if (view === 'output' && b.output != null) {
@@ -461,6 +486,7 @@ function renderTimeline() {
         }
       }
       if (selected.has(key)) {
+        el.classList.add('selected');
         el.style.boxShadow = `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.35)}`;
       }
 
@@ -503,7 +529,9 @@ function renderTimeline() {
 /* ===================== selection & drag ===================== */
 function applySelectionHighlight() {
   timelinePanel.querySelectorAll('.qblock').forEach(el => {
-    el.style.boxShadow = selected.has(el.dataset.key) ? `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.35)}` : '';
+    const sel = selected.has(el.dataset.key);
+    el.classList.toggle('selected', sel);
+    el.style.boxShadow = sel ? `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.35)}` : '';
   });
 }
 function computeRange(idxA, idxB) {
@@ -764,6 +792,21 @@ function shiftDate(delta) {
 document.getElementById('prevDay').addEventListener('click', () => shiftDate(-1));
 document.getElementById('nextDay').addEventListener('click', () => shiftDate(1));
 document.getElementById('todayBtn').addEventListener('click', () => { currentDate = todayStr(); clearSelection(); });
+
+// wheel over the timeline switches day (down = next day); accumulate + cooldown so trackpads don't skip days
+let wheelAcc = 0, wheelLockUntil = 0;
+timelinePanel.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  if (dragging) return;
+  const now = Date.now();
+  if (now < wheelLockUntil) return;
+  wheelAcc += e.deltaY * (e.deltaMode === 1 ? 33 : 1);
+  if (Math.abs(wheelAcc) < 50) return;
+  const dir = wheelAcc > 0 ? 1 : -1;
+  wheelAcc = 0;
+  wheelLockUntil = now + 250;
+  shiftDate(dir);
+}, { passive: false });
 
 /* ===================== mobile tabs ===================== */
 const mobileTabs = document.getElementById('mobileTabs');
