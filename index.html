@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>TOPA</title>
 <style>
-:root { --bg:#1c1c1c; --fg:#d8d8d8; --hl:#6fa8ff;
+:root { --bg:#1c1c1c; --fg:#d8d8d8; --hl:#6fa8ff; --hover-bg: rgba(111,168,255,0.2);
   --dim: color-mix(in srgb, var(--fg) 55%, transparent);
   --border-c: color-mix(in srgb, var(--fg) 30%, transparent); }
 * { box-sizing: border-box; }
@@ -15,7 +15,7 @@ html, body { margin:0; padding:0; height:100%; background:var(--bg); color:var(-
 button, input, textarea { font-family:inherit; font-size:inherit; background:var(--bg); color:var(--fg);
   border:1px solid var(--border-c); border-radius:0; box-shadow:none; padding:3px 6px; }
 button { cursor:pointer; }
-button:hover { background:var(--fg); color:var(--bg); }
+button:hover { background:var(--hover-bg); color:var(--fg); }
 button.active { background:var(--hl); color:var(--bg); border-color:var(--hl); }
 #viewTabs button.active { color:var(--fg); }
 .output-list button.active { color:var(--fg); }
@@ -36,6 +36,9 @@ textarea { resize:none; width:100%; }
 .spacer { flex:1; }
 .themectl { display:flex; align-items:stretch; border-left:1px solid var(--border-c); }
 .themectl .themelabel { color:var(--dim); font-size:13px; display:flex; align-items:center; padding:0 6px; }
+.hoverinput { width:46px; border:none; border-left:1px solid var(--border-c); border-right:1px solid var(--border-c);
+  border-radius:0; background:transparent; text-align:center; padding:0 4px; -moz-appearance:textfield; }
+.hoverinput::-webkit-inner-spin-button, .hoverinput::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
 .selInfo { display:flex; align-items:center; padding:0 10px; color:var(--dim); }
 
 /* ---------- main layout ---------- */
@@ -71,9 +74,9 @@ textarea { resize:none; width:100%; }
 .tag-row .namewrap { flex:1; min-width:0; display:flex; align-items:center; padding:6px 8px; }
 .tag-row .namewrap span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .tag-row .namewrap input[type="text"] { flex:1; min-width:0; border:none; padding:0; background:transparent; }
-.tag-row .rowbtn { flex:none; border:none; border-left:1px solid var(--border-c); color:var(--dim);
-  padding:0 10px; border-radius:0; }
-.tag-row .rowbtn:hover { color:var(--bg); background:var(--fg); }
+.tag-row .rowbtn { flex:none; border:none; color:var(--dim); padding:0 5px; border-radius:0; }
+.tag-row .rowbtn:last-child { padding-right:8px; }
+.tag-row .rowbtn:hover { color:var(--hl); background:none; }
 .addbtn { width:100%; border:none; border-top:1px solid var(--border-c); border-bottom:1px solid var(--border-c); padding:8px; margin:0; }
 
 /* ---------- color swatch + popover ---------- */
@@ -145,6 +148,7 @@ textarea { resize:none; width:100%; }
       <span class="themelabel" data-i="bg"></span><span class="swatchhost" id="themeBgHost"></span>
       <span class="themelabel" data-i="fg"></span><span class="swatchhost" id="themeFgHost"></span>
       <span class="themelabel" data-i="hl"></span><span class="swatchhost" id="themeHlHost"></span>
+      <span class="themelabel" data-i="hoverRatio"></span><input class="hoverinput" id="hoverRatio" type="number" min="0" max="100" step="5">
     </div>
   </div>
 
@@ -179,7 +183,7 @@ textarea { resize:none; width:100%; }
 const STRINGS = {
   zh: {
     today: '今天', clearData: '清空信息', deselect: '取消选择',
-    bg: 'bg', fg: 'fg', hl: 'hl',
+    bg: 'bg', fg: 'fg', hl: 'hl', hoverRatio: 'hover%',
     mtProject: '项目', mtArea: '领域', mtOutput: '产出/备注',
     headProject: 'PROJECT', headArea: 'AREA', headOutput: 'OUTPUT', headNotes: 'NOTES',
     emptyHint: '选中一个或多个时间块',
@@ -213,7 +217,7 @@ function randomColor() { return PALETTE[Math.floor(Math.random() * PALETTE.lengt
 function defaultData() {
   return {
     meta: { schemaVersion: 1, displayView: 'project' },
-    theme: { bg: '#1c1c1c', fg: '#d8d8d8', hl: '#6fa8ff' },
+    theme: { bg: '#1c1c1c', fg: '#d8d8d8', hl: '#6fa8ff', hoverRatio: 0.2 },
     projects: {}, areas: {}, blocks: {}, colorHistory: []
   };
 }
@@ -416,6 +420,7 @@ function applyTheme() {
   document.documentElement.style.setProperty('--bg', db.theme.bg);
   document.documentElement.style.setProperty('--fg', db.theme.fg);
   document.documentElement.style.setProperty('--hl', db.theme.hl);
+  document.documentElement.style.setProperty('--hover-bg', hexToRgba(db.theme.hl, db.theme.hoverRatio));
 }
 function outputColor(v) { return hexToRgba(db.theme.hl, 0.06 + (v / 9) * 0.94); }
 
@@ -427,6 +432,15 @@ function setupThemeSwatches() {
   bgHost.appendChild(themeSwatch(db.theme.bg, c => { db.theme.bg = c; applyTheme(); saveData(); renderTimeline(); }));
   fgHost.appendChild(themeSwatch(db.theme.fg, c => { db.theme.fg = c; applyTheme(); saveData(); renderTimeline(); }));
   hlHost.appendChild(themeSwatch(db.theme.hl, c => { db.theme.hl = c; applyTheme(); saveData(); renderTimeline(); }));
+
+  const hoverInput = document.getElementById('hoverRatio');
+  hoverInput.value = Math.round(db.theme.hoverRatio * 100);
+  hoverInput.addEventListener('input', () => {
+    const v = parseFloat(hoverInput.value);
+    if (isNaN(v)) return;
+    db.theme.hoverRatio = Math.min(100, Math.max(0, v)) / 100;
+    applyTheme(); saveData();
+  });
 }
 
 /* ===================== timeline render ===================== */
