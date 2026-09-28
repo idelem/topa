@@ -434,10 +434,11 @@ const timelinePanel = document.getElementById('timelinePanel');
 const dateLabel = document.getElementById('dateLabel');
 const phInfo = document.getElementById('phInfo');
 
-// ph = sum over projects of sum(output / (projectBlocks / allProjectBlocks)); multi-project blocks count once per project
+// same project + same output value = one task; ph = sum over tasks of (task output / (projectBlocks / allProjectBlocks))
+// multi-project blocks count once per project (and once in the total)
 function computeProductivityHours(dateStr) {
   let total = 0;
-  const sum = {}, cnt = {};
+  const cnt = {}, tasks = {};
   for (let i = 0; i < 96; i++) {
     const b = getBlock(blockKey(dateStr, Math.floor(i / 4), i % 4));
     if (!b) continue;
@@ -445,10 +446,17 @@ function computeProductivityHours(dateStr) {
     if (!ids.length) continue;
     total++;
     const out = b.output == null ? 0 : b.output;
-    ids.forEach(id => { sum[id] = (sum[id] || 0) + out; cnt[id] = (cnt[id] || 0) + 1; });
+    ids.forEach(id => {
+      cnt[id] = (cnt[id] || 0) + 1;
+      (tasks[id] = tasks[id] || new Set()).add(out);
+    });
   }
   let ph = 0;
-  Object.keys(cnt).forEach(id => { ph += sum[id] / (cnt[id] / total); });
+  Object.keys(cnt).forEach(id => {
+    let taskSum = 0;
+    tasks[id].forEach(v => { taskSum += v; });
+    ph += taskSum / (cnt[id] / total);
+  });
   return ph;
 }
 function updatePH() { phInfo.textContent = t('ph', computeProductivityHours(currentDate).toFixed(1)); }
