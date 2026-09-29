@@ -44,9 +44,11 @@ textarea { resize:none; width:100%; }
 /* ---------- main layout ---------- */
 .main { flex:1; display:flex; min-height:0; }
 
-.timeline-panel { flex:0 0 50%; max-width:50%; height:100%; display:grid;
+.timeline-wrap { flex:0 0 50%; max-width:50%; height:100%; position:relative; }
+.timeline-panel { width:100%; height:100%; display:grid;
   grid-template-columns:46px repeat(4,1fr); grid-auto-rows:1fr;
   border-left:1px solid var(--border-c); }
+.now-marker { position:absolute; width:2px; background:var(--hl); pointer-events:none; z-index:2; }
 .hour-label { padding:2px 4px; color:var(--dim); font-size:13px; display:flex; align-items:flex-start;
   border-right:1px solid var(--border-c); border-bottom:1px solid var(--border-c); }
 .qblock { border-right:1px solid var(--border-c); border-bottom:1px solid var(--border-c); position:relative;
@@ -77,6 +79,10 @@ textarea { resize:none; width:100%; }
 .tag-row .rowbtn { flex:none; border:none; color:var(--dim); padding:0 5px; border-radius:0; }
 .tag-row .rowbtn:last-child { padding-right:8px; }
 .tag-row .rowbtn:hover { color:var(--hl); background:none; }
+.tag-row .rowbtn svg { width:14px; height:14px; display:block; }
+.rowbtn.pinned { color:var(--hl); }
+.tag-row.archived { opacity:0.5; }
+.tag-row.archived .namewrap span { text-decoration:line-through; }
 .addbtn { width:100%; border:none; border-top:1px solid var(--border-c); border-bottom:1px solid var(--border-c); padding:8px; margin:0; }
 
 /* ---------- color swatch + popover ---------- */
@@ -114,7 +120,7 @@ textarea { resize:none; width:100%; }
 
 @media (max-width:760px) {
   .main { flex-direction:column; }
-  .timeline-panel { flex:1 1 auto; max-width:none; width:100%; }
+  .timeline-wrap { flex:1 1 auto; max-width:none; width:100%; }
   .side-panel { flex:0 0 42vh; height:42vh; border-top:1px solid var(--border-c); flex-direction:column; }
   .side-col { border-right:none; display:none; }
   .side-col.mobile-active { display:flex; }
@@ -142,6 +148,11 @@ textarea { resize:none; width:100%; }
       <button id="deselectBtn" disabled data-i="deselect"></button>
     </div>
     <div class="btngroup" id="phGroup"><span id="phInfo"></span></div>
+    <div class="btngroup" id="ioGroup">
+      <button id="exportBtn"></button>
+      <button id="importBtn"></button>
+    </div>
+    <input type="file" id="importFile" accept="application/json" style="display:none;">
     <span class="selInfo" id="selInfo"></span>
     <div class="spacer"></div>
     <div class="themectl">
@@ -159,7 +170,10 @@ textarea { resize:none; width:100%; }
   </div>
 
   <div class="main">
-    <div class="timeline-panel" id="timelinePanel"></div>
+    <div class="timeline-wrap" id="timelineWrap">
+      <div class="timeline-panel" id="timelinePanel"></div>
+      <div id="nowMarker" class="now-marker" style="display:none;"></div>
+    </div>
     <div class="side-panel">
       <div class="side-col" data-col="project">
         <div class="side-col-head"><span data-i="headProject"></span></div>
@@ -178,6 +192,7 @@ textarea { resize:none; width:100%; }
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@jaames/iro/dist/iro.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.js"></script>
 <script>
 /* ===================== i18n ===================== */
 const STRINGS = {
@@ -192,7 +207,11 @@ const STRINGS = {
     mixed: '多选 · 不一致', edit: '编辑', merge: '合并',
     confirmOverwrite: '将覆盖这些块本来的设置，是否继续？',
     confirmClear: '将清空所选块上的全部标注，是否继续？',
+    confirmImport: '导入将覆盖当前所有数据，是否继续？',
+    importInvalid: '文件内容不是有效的 TOPA 数据',
+    exportTitle: '导出数据', importTitle: '导入数据',
     addProject: '+ 新建项目', addArea: '+ 新建领域',
+    pin: '置顶', archive: '归档', restore: '恢复',
     newProjectName: '新项目', newAreaName: '新领域',
     hexPlaceholder: '#rrggbb'
   }
@@ -374,8 +393,22 @@ function themeSwatch(initial, onChange) {
 }
 let editingId = null; // id of the project/area row currently in inline-edit mode
 
-function buildTagRow(id, obj, onColorChange, onNameChange, onDelete, isActive, onToggle) {
+function lucideBtn(iconName, fallbackText, title, onClick) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'rowbtn'; if (title) b.title = title;
+  if (window.lucide) {
+    const i = document.createElement('i'); i.setAttribute('data-lucide', iconName);
+    b.appendChild(i);
+  } else { b.textContent = fallbackText; }
+  b.onclick = (e) => { e.stopPropagation(); onClick(); };
+  return b;
+}
+function refreshIcons() { if (window.lucide) lucide.createIcons(); }
+
+function buildTagRow(id, obj, onColorChange, onNameChange, onDelete, isActive, onToggle, opts) {
+  opts = opts || {};
   const row = document.createElement('div'); row.className = 'tag-row';
+  if (opts.archived) row.classList.add('archived');
   if (isActive) row.style.boxShadow = `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.28)}`;
   const swatch = rowColorSwatch(obj.color, onColorChange);
 
@@ -411,7 +444,9 @@ function buildTagRow(id, obj, onColorChange, onNameChange, onDelete, isActive, o
   delBtn.type = 'button'; delBtn.className = 'rowbtn'; delBtn.textContent = '\u00d7';
   delBtn.onclick = (e) => { e.stopPropagation(); onDelete(); };
 
-  row.append(swatch, nameWrap, editBtn, delBtn);
+  row.append(swatch, nameWrap, editBtn);
+  (opts.extraButtons || []).forEach(btn => row.appendChild(btn));
+  row.appendChild(delBtn);
   return row;
 }
 
@@ -545,7 +580,28 @@ function renderTimeline() {
       timelinePanel.appendChild(el);
     }
   }
+  updateNowMarker();
 }
+
+const timelineWrap = document.getElementById('timelineWrap');
+const nowMarker = document.getElementById('nowMarker');
+function updateNowMarker() {
+  if (currentDate !== todayStr()) { nowMarker.style.display = 'none'; return; }
+  const now = new Date();
+  const hour = now.getHours(), minute = now.getMinutes() + now.getSeconds() / 60;
+  const q0 = timelinePanel.querySelector(`.qblock[data-idx="${hour * 4}"]`);
+  const q3 = timelinePanel.querySelector(`.qblock[data-idx="${hour * 4 + 3}"]`);
+  if (!q0 || !q3) { nowMarker.style.display = 'none'; return; }
+  const wrapRect = timelineWrap.getBoundingClientRect();
+  const r0 = q0.getBoundingClientRect();
+  const r3 = q3.getBoundingClientRect();
+  const totalWidth = (r3.left + r3.width) - r0.left;
+  nowMarker.style.display = 'block';
+  nowMarker.style.top = (r0.top - wrapRect.top) + 'px';
+  nowMarker.style.height = r0.height + 'px';
+  nowMarker.style.left = (r0.left - wrapRect.left + (minute / 60) * totalWidth) + 'px';
+}
+setInterval(updateNowMarker, 15000);
 
 /* ===================== selection & drag ===================== */
 function applySelectionHighlight() {
@@ -660,8 +716,13 @@ function renderProjectCol(items) {
     return;
   }
 
-  Object.entries(db.projects).forEach(([id, p]) => {
-    const onToggle = items.length ? () => {
+  const entries = Object.entries(db.projects);
+  const pinned = entries.filter(([, p]) => p.pinned && !p.archived);
+  const normal = entries.filter(([, p]) => !p.pinned && !p.archived);
+  const archived = entries.filter(([, p]) => p.archived);
+
+  function buildProjectRow(id, p, archivedRow) {
+    const onToggle = (items.length && !archivedRow) ? () => {
       const turnOn = !activeSet.has(id);
       items.forEach(it => {
         const b = ensureBlock(it.key);
@@ -672,6 +733,13 @@ function renderProjectCol(items) {
       });
       saveData(); renderAll();
     } : null;
+    const extraButtons = archivedRow
+      ? [lucideBtn('archive-restore', t('restore'), t('restore'), () => { p.archived = false; saveData(); renderAll(); })]
+      : [
+          lucideBtn('pin', p.pinned ? '\u2605' : '\u2606', t('pin'), () => { p.pinned = !p.pinned; saveData(); renderAll(); }),
+          lucideBtn('archive', t('archive'), t('archive'), () => { p.archived = true; p.pinned = false; saveData(); renderAll(); })
+        ];
+    if (!archivedRow && p.pinned) extraButtons[0].classList.add('pinned');
     const row = buildTagRow(id, p,
       (c) => { p.color = c; saveData(); renderTimeline(); },
       (v) => { p.name = v.trim() || p.name; saveData(); renderTimeline(); },
@@ -681,12 +749,20 @@ function renderProjectCol(items) {
         Object.keys(db.blocks).forEach(pruneIfEmpty);
         saveData(); renderAll();
       },
-      items.length && activeSet.has(id), onToggle);
+      items.length && activeSet.has(id), onToggle,
+      { archived: archivedRow, extraButtons });
     colProject.appendChild(row);
-  });
+  }
+
+  pinned.forEach(([id, p]) => buildProjectRow(id, p, false));
+  normal.forEach(([id, p]) => buildProjectRow(id, p, false));
+
   const add = document.createElement('button'); add.className = 'addbtn'; add.textContent = t('addProject');
-  add.onclick = () => { const id = uid('p'); db.projects[id] = { name: t('newProjectName'), color: randomColor() }; saveData(); renderSidePanel(); };
+  add.onclick = () => { const id = uid('p'); db.projects[id] = { name: t('newProjectName'), color: randomColor(), pinned: false, archived: false }; saveData(); renderSidePanel(); };
   colProject.appendChild(add);
+
+  archived.forEach(([id, p]) => buildProjectRow(id, p, true));
+  refreshIcons();
 }
 function mergeProjects(items) {
   const union = new Set();
@@ -841,8 +917,63 @@ function syncMobileTabs() {
 }
 
 /* ===================== bootstrap ===================== */
+/* ===================== import / export ===================== */
+const exportBtn = document.getElementById('exportBtn');
+const importBtn = document.getElementById('importBtn');
+const importFile = document.getElementById('importFile');
+function setupIO() {
+  exportBtn.title = t('exportTitle');
+  importBtn.title = t('importTitle');
+  if (window.lucide) {
+    exportBtn.innerHTML = ''; importBtn.innerHTML = '';
+    const i1 = document.createElement('i'); i1.setAttribute('data-lucide', 'cloud-download'); exportBtn.appendChild(i1);
+    const i2 = document.createElement('i'); i2.setAttribute('data-lucide', 'cloud-upload'); importBtn.appendChild(i2);
+  } else {
+    exportBtn.textContent = '\u2913'; importBtn.textContent = '\u2911';
+  }
+}
+exportBtn.onclick = () => {
+  const data = JSON.stringify(db, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `topa-${currentDate}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+importBtn.onclick = () => importFile.click();
+importFile.addEventListener('change', () => {
+  const file = importFile.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let parsed;
+    try { parsed = JSON.parse(reader.result); } catch (e) { alert(t('importInvalid')); importFile.value = ''; return; }
+    if (!parsed || typeof parsed !== 'object' || !parsed.projects || !parsed.areas || !parsed.blocks) {
+      alert(t('importInvalid')); importFile.value = ''; return;
+    }
+    confirmThen(t('confirmImport'), () => {
+      const d = defaultData();
+      db = Object.assign(d, parsed, {
+        meta: Object.assign(d.meta, parsed.meta),
+        theme: Object.assign(d.theme, parsed.theme),
+        projects: parsed.projects || {},
+        areas: parsed.areas || {},
+        blocks: parsed.blocks || {},
+        colorHistory: parsed.colorHistory || []
+      });
+      saveData();
+      currentDate = todayStr();
+      selected = new Set();
+      applyTheme(); setupThemeSwatches(); renderAll();
+    });
+    importFile.value = '';
+  };
+  reader.readAsText(file);
+});
+
 function seedIfEmpty() {
-  if (Object.keys(db.projects).length === 0) { const id = uid('p'); db.projects[id] = { name: '示例项目', color: randomColor() }; }
+  if (Object.keys(db.projects).length === 0) { const id = uid('p'); db.projects[id] = { name: '示例项目', color: randomColor(), pinned: false, archived: false }; }
   if (Object.keys(db.areas).length === 0) { const id = uid('a'); db.areas[id] = { name: '示例领域', color: randomColor() }; }
 }
 function renderAll() { syncViewTabs(); renderTimeline(); renderSidePanel(); syncMobileTabs(); }
@@ -850,7 +981,9 @@ function renderAll() { syncViewTabs(); renderTimeline(); renderSidePanel(); sync
 seedIfEmpty();
 applyTheme();
 setupThemeSwatches();
+setupIO();
 renderAll();
+refreshIcons();
 saveData();
 </script>
 </body>
