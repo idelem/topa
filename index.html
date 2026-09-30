@@ -80,8 +80,9 @@ textarea { resize:none; width:100%; }
 .tag-row .namewrap input[type="text"] { flex:1; min-width:0; border:none; padding:0; background:transparent; }
 .tag-row .rowbtn { flex:none; border:none; color:var(--dim); padding:0 5px; border-radius:0; }
 .tag-row .rowbtn:last-child { padding-right:8px; }
-.tag-row .rowbtn:hover { color:var(--fg); background:none; }
 .tag-row .rowbtn svg { width:14px; height:14px; display:block; }
+.rowbody.active { background:var(--hover-bg); }
+.rowbody.active .rowbtn { background:var(--hover-bg); }
 .rowbtn.pinned { color:var(--hl); }
 .tag-row.archived { opacity:0.5; }
 .tag-row.archived .namewrap span { text-decoration:line-through; }
@@ -420,7 +421,7 @@ function buildTagRow(id, obj, onColorChange, onNameChange, onDelete, isActive, o
   const swatch = rowColorSwatch(obj.color, onColorChange);
 
   const bodyWrap = document.createElement('div'); bodyWrap.className = 'rowbody';
-  if (isActive) bodyWrap.style.background = 'var(--hover-bg)';
+  if (isActive) bodyWrap.classList.add('active');
 
   const nameWrap = document.createElement('div'); nameWrap.className = 'namewrap';
   if (editingId === id) {
