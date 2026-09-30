@@ -16,7 +16,7 @@ button, input, textarea { font-family:inherit; font-size:inherit; background:var
   border:1px solid var(--border-c); border-radius:0; box-shadow:none; padding:3px 6px; }
 button { cursor:pointer; }
 button:hover { background:var(--hover-bg); color:var(--fg); }
-button.active { background:var(--hl); color:var(--bg); border-color:var(--hl); }
+button.active { background:var(--hover-bg); color:var(--fg); border-color:var(--hl); }
 #viewTabs button.active { color:var(--fg); }
 .output-list button.active { color:var(--fg); }
 button:disabled { opacity:.35; cursor:default; }
@@ -33,6 +33,7 @@ textarea { resize:none; width:100%; }
 .btngroup { display:flex; align-items:stretch; }
 .btngroup > button, .btngroup > span { border:none; border-right:1px solid var(--border-c); border-radius:0;
   display:flex; align-items:center; padding:0 10px; margin:0; }
+.btngroup button svg { width:14px; height:14px; display:block; }
 .spacer { flex:1; }
 .themectl { display:flex; align-items:stretch; border-left:1px solid var(--border-c); }
 .themectl .themelabel { color:var(--dim); font-size:13px; display:flex; align-items:center; padding:0 6px; }
@@ -73,12 +74,13 @@ textarea { resize:none; width:100%; }
 .tag-row:last-of-type { border-bottom:none; }
 .tag-row .rowswatch { flex:none; width:30px; align-self:stretch; padding:0; margin:0;
   border:none; border-right:1px solid var(--border-c); border-radius:0; }
+.tag-row .rowbody { flex:1; min-width:0; display:flex; align-items:stretch; }
 .tag-row .namewrap { flex:1; min-width:0; display:flex; align-items:center; padding:6px 8px; }
 .tag-row .namewrap span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .tag-row .namewrap input[type="text"] { flex:1; min-width:0; border:none; padding:0; background:transparent; }
 .tag-row .rowbtn { flex:none; border:none; color:var(--dim); padding:0 5px; border-radius:0; }
 .tag-row .rowbtn:last-child { padding-right:8px; }
-.tag-row .rowbtn:hover { color:var(--hl); background:none; }
+.tag-row .rowbtn:hover { color:var(--fg); background:none; }
 .tag-row .rowbtn svg { width:14px; height:14px; display:block; }
 .rowbtn.pinned { color:var(--hl); }
 .tag-row.archived { opacity:0.5; }
@@ -355,11 +357,17 @@ function openColorPopover(anchorEl, initial, onChange) {
   pop.appendChild(hexInput);
 
   function outsideClose(e) {
-    if (!pop.contains(e.target) && e.target !== anchorEl) { document.removeEventListener('mousedown', outsideClose); closeColorPopover(); }
+    if (!pop.contains(e.target) && e.target !== anchorEl) { closeColorPopover(); }
   }
   setTimeout(() => document.addEventListener('mousedown', outsideClose), 0);
 
-  activePopover = { finish: () => { pushColorHistory(finalColor); pop.remove(); } };
+  activePopover = {
+    finish: () => {
+      pushColorHistory(finalColor);
+      pop.remove();
+      document.removeEventListener('mousedown', outsideClose);
+    }
+  };
 }
 function colorSwatch(initial, onChange) {
   const btn = document.createElement('button');
@@ -409,8 +417,10 @@ function buildTagRow(id, obj, onColorChange, onNameChange, onDelete, isActive, o
   opts = opts || {};
   const row = document.createElement('div'); row.className = 'tag-row';
   if (opts.archived) row.classList.add('archived');
-  if (isActive) row.style.boxShadow = `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.28)}`;
   const swatch = rowColorSwatch(obj.color, onColorChange);
+
+  const bodyWrap = document.createElement('div'); bodyWrap.className = 'rowbody';
+  if (isActive) bodyWrap.style.background = 'var(--hover-bg)';
 
   const nameWrap = document.createElement('div'); nameWrap.className = 'namewrap';
   if (editingId === id) {
@@ -430,8 +440,8 @@ function buildTagRow(id, obj, onColorChange, onNameChange, onDelete, isActive, o
     nameWrap.appendChild(span);
   }
   if (onToggle && editingId !== id) {
-    row.addEventListener('click', (e) => {
-      if (e.target.closest('.rowswatch, .rowbtn, input')) return;
+    bodyWrap.addEventListener('click', (e) => {
+      if (e.target.closest('.rowbtn, input')) return;
       onToggle();
     });
   }
@@ -444,9 +454,10 @@ function buildTagRow(id, obj, onColorChange, onNameChange, onDelete, isActive, o
   delBtn.type = 'button'; delBtn.className = 'rowbtn'; delBtn.textContent = '\u00d7';
   delBtn.onclick = (e) => { e.stopPropagation(); onDelete(); };
 
-  row.append(swatch, nameWrap, editBtn);
-  (opts.extraButtons || []).forEach(btn => row.appendChild(btn));
-  row.appendChild(delBtn);
+  bodyWrap.append(nameWrap, editBtn);
+  (opts.extraButtons || []).forEach(btn => bodyWrap.appendChild(btn));
+  bodyWrap.appendChild(delBtn);
+  row.append(swatch, bodyWrap);
   return row;
 }
 
