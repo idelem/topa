@@ -54,10 +54,10 @@ textarea { resize:none; width:100%; }
   border-right:1px solid var(--border-c); border-bottom:1px solid var(--border-c); }
 .qblock { border-right:1px solid var(--border-c); border-bottom:1px solid var(--border-c); position:relative;
   overflow:hidden; padding:1px 3px; cursor:pointer; min-width:0;
-  display:flex; flex-direction:column; justify-content:center; gap:0; }
-.qblock .rl { font-size:11px; line-height:1.2; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-  color:var(--fg); }
-.qblock .dot { position:absolute; top:1px; right:2px; font-size:10px; color:var(--fg); }
+  display:flex; flex-direction:column; gap:0; }
+.qblock .rl { flex:1 1 0; min-height:0; font-size:11px; line-height:1.2; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; color:var(--fg); }
+.qblock .obadge { position:absolute; top:1px; right:2px; font-size:10px; color:var(--fg); }
 .qblock.selected { outline:2px solid var(--hl); outline-offset:-2px; z-index:1; }
 
 .side-panel { flex:1 1 auto; min-width:0; display:flex; flex-direction:row; height:100%; }
@@ -150,6 +150,10 @@ textarea { resize:none; width:100%; }
       <button id="clearDataBtn" disabled data-i="clearData"></button>
       <button id="deselectBtn" disabled data-i="deselect"></button>
     </div>
+    <div class="btngroup" id="cpGroup">
+      <button id="copyBtn" disabled></button>
+      <button id="pasteBtn" disabled></button>
+    </div>
     <div class="btngroup" id="phGroup"><span id="phInfo"></span></div>
     <div class="btngroup" id="ioGroup">
       <button id="exportBtn"></button>
@@ -210,6 +214,10 @@ const STRINGS = {
     mixed: '多选 · 不一致', edit: '编辑', merge: '合并',
     confirmOverwrite: '将覆盖这些块本来的设置，是否继续？',
     confirmClear: '将清空所选块上的全部标注，是否继续？',
+    confirmPasteOverwrite: '将覆盖所选块上已有的标注，是否继续？',
+    confirmDeleteProject: '确定要删除这个项目吗？它在所有块上的标注都会被移除，此操作无法撤销。',
+    confirmDeleteArea: '确定要删除这个领域吗？它在所有块上的标注都会被移除，此操作无法撤销。',
+    copyTitle: '复制所选块', pasteTitle: '粘贴到所选块',
     confirmImport: '导入将覆盖当前所有数据，是否继续？',
     importInvalid: '文件内容不是有效的 TOPA 数据',
     exportTitle: '导出数据', importTitle: '导入数据',
@@ -453,7 +461,7 @@ function buildTagRow(id, obj, onColorChange, onNameChange, onDelete, isActive, o
 
   const delBtn = document.createElement('button');
   delBtn.type = 'button'; delBtn.className = 'rowbtn'; delBtn.textContent = '\u00d7';
-  delBtn.onclick = (e) => { e.stopPropagation(); onDelete(); };
+  delBtn.onclick = (e) => { e.stopPropagation(); confirmThen(opts.confirmDeleteMsg || t('confirmOverwrite'), onDelete); };
 
   bodyWrap.append(nameWrap, editBtn);
   (opts.extraButtons || []).forEach(btn => bodyWrap.appendChild(btn));
@@ -526,7 +534,7 @@ function renderTimeline() {
   updatePH();
   timelinePanel.innerHTML = '';
   const view = db.meta.displayView;
-  let prevProjSig = undefined, prevAreaName = undefined, prevOutputVal = undefined;
+  let prevProjSig = undefined, prevAreaName = undefined, prevNotes = undefined;
 
   for (let h = 0; h < 24; h++) {
     const label = document.createElement('div');
@@ -558,35 +566,29 @@ function renderTimeline() {
         el.style.boxShadow = `inset 0 0 0 999px ${hexToRgba(db.theme.hl, 0.35)}`;
       }
 
-      // all three fields always shown as text, each independently suppressing consecutive repeats
+      // three fixed line slots (project / area / notes) so content aligns across blocks;
+      // each independently suppresses consecutive repeats. output moves to a corner badge.
+      const projLine = document.createElement('div'); projLine.className = 'rl';
+      const areaLine = document.createElement('div'); areaLine.className = 'rl';
+      const notesLine = document.createElement('div'); notesLine.className = 'rl';
+      el.append(projLine, areaLine, notesLine);
+
       const projNames = b ? b.projectIds.map(id => db.projects[id] && db.projects[id].name).filter(Boolean) : [];
       const projSig = b ? projNames.join(',') : null;
-      if (b && projNames.length) {
-        const line = document.createElement('div'); line.className = 'rl';
-        line.textContent = (projSig !== prevProjSig) ? projNames.join('/') : '...';
-        el.appendChild(line);
-      }
+      if (b && projNames.length) projLine.textContent = (projSig !== prevProjSig) ? projNames.join('/') : '...';
       prevProjSig = b ? projSig : undefined;
 
       const areaName = (b && b.areaId && db.areas[b.areaId]) ? db.areas[b.areaId].name : null;
-      if (areaName) {
-        const line = document.createElement('div'); line.className = 'rl';
-        line.textContent = (areaName !== prevAreaName) ? areaName : '...';
-        el.appendChild(line);
-      }
+      if (areaName) areaLine.textContent = (areaName !== prevAreaName) ? areaName : '...';
       prevAreaName = b ? areaName : undefined;
 
-      const outVal = (b && b.output != null) ? b.output : null;
-      if (outVal != null) {
-        const line = document.createElement('div'); line.className = 'rl';
-        line.textContent = (outVal !== prevOutputVal) ? ('#' + outVal) : '...';
-        el.appendChild(line);
-      }
-      prevOutputVal = b ? outVal : undefined;
+      const notesVal = (b && b.notes) ? b.notes : null;
+      if (notesVal) notesLine.textContent = (notesVal !== prevNotes) ? notesVal : '...';
+      prevNotes = b ? notesVal : undefined;
 
-      if (b && b.notes) {
-        const dot = document.createElement('div'); dot.className = 'dot'; dot.textContent = '\u25CF';
-        el.appendChild(dot);
+      if (b && b.output != null) {
+        const badge = document.createElement('div'); badge.className = 'obadge'; badge.textContent = b.output;
+        el.appendChild(badge);
       }
 
       timelinePanel.appendChild(el);
@@ -614,6 +616,11 @@ function updateNowMarker() {
   nowMarker.style.left = (r0.left - wrapRect.left + (minute / 60) * totalWidth) + 'px';
 }
 setInterval(updateNowMarker, 15000);
+let resizeRaf = null;
+window.addEventListener('resize', () => {
+  if (resizeRaf) cancelAnimationFrame(resizeRaf);
+  resizeRaf = requestAnimationFrame(updateNowMarker);
+});
 
 /* ===================== selection & drag ===================== */
 function applySelectionHighlight() {
@@ -669,7 +676,16 @@ document.addEventListener('mouseup', () => {
   renderSidePanel();
 });
 timelinePanel.addEventListener('contextmenu', (e) => { e.preventDefault(); clearSelection(); });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') clearSelection(); });
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { clearSelection(); return; }
+  const tag = (e.target && e.target.tagName || '').toUpperCase();
+  if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+    if (selected.size) { e.preventDefault(); copySelectedBlocks(); }
+  } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+    if (selected.size) { e.preventDefault(); pasteToSelectedBlocks(); }
+  }
+});
 document.getElementById('topbar').addEventListener('click', (e) => { if (e.target === e.currentTarget) clearSelection(); });
 
 /* ===================== side panel ===================== */
@@ -688,6 +704,8 @@ function updateSelInfo() {
   const has = selected.size > 0;
   clearDataBtn.disabled = !has;
   deselectBtn.disabled = !has;
+  copyBtn.disabled = !has;
+  pasteBtn.disabled = !has || !blockClipboard;
   selInfo.textContent = has ? t('selCount', selected.size) : '';
 }
 clearDataBtn.onclick = () => {
@@ -699,6 +717,38 @@ clearDataBtn.onclick = () => {
   });
 };
 deselectBtn.onclick = () => clearSelection();
+
+/* ===================== copy / paste ===================== */
+const copyBtn = document.getElementById('copyBtn');
+const pasteBtn = document.getElementById('pasteBtn');
+let blockClipboard = null;
+function blockHasData(b) { return !!b && (b.projectIds.length || b.areaId || b.output != null || b.notes); }
+function copySelectedBlocks() {
+  if (!selected.size) return;
+  const key = [...selected].sort()[0];
+  const b = getBlock(key);
+  blockClipboard = b
+    ? { projectIds: [...b.projectIds], areaId: b.areaId, output: b.output, notes: b.notes }
+    : { projectIds: [], areaId: null, output: null, notes: '' };
+  updateSelInfo();
+}
+function pasteToSelectedBlocks() {
+  if (!selected.size || !blockClipboard) return;
+  const doPaste = () => {
+    selected.forEach(key => {
+      if (blockClipboard.projectIds.length || blockClipboard.areaId || blockClipboard.output != null || blockClipboard.notes) {
+        db.blocks[key] = { projectIds: [...blockClipboard.projectIds], areaId: blockClipboard.areaId, output: blockClipboard.output, notes: blockClipboard.notes };
+      } else {
+        delete db.blocks[key];
+      }
+    });
+    saveData(); renderAll();
+  };
+  const hasExisting = [...selected].some(key => blockHasData(getBlock(key)));
+  if (hasExisting) confirmThen(t('confirmPasteOverwrite'), doPaste); else doPaste();
+}
+copyBtn.onclick = copySelectedBlocks;
+pasteBtn.onclick = pasteToSelectedBlocks;
 
 function renderSidePanel() {
   const items = selectedBlocks();
@@ -762,7 +812,7 @@ function renderProjectCol(items) {
         saveData(); renderAll();
       },
       items.length && activeSet.has(id), onToggle,
-      { archived: archivedRow, extraButtons });
+      { archived: archivedRow, extraButtons, confirmDeleteMsg: t('confirmDeleteProject') });
     colProject.appendChild(row);
   }
 
@@ -816,7 +866,8 @@ function renderAreaCol(items) {
         Object.keys(db.blocks).forEach(pruneIfEmpty);
         saveData(); renderAll();
       },
-      items.length && current === id, onToggle);
+      items.length && current === id, onToggle,
+      { confirmDeleteMsg: t('confirmDeleteArea') });
     colArea.appendChild(row);
   });
   const add = document.createElement('button'); add.className = 'addbtn'; add.textContent = t('addArea');
@@ -933,16 +984,25 @@ function syncMobileTabs() {
 const exportBtn = document.getElementById('exportBtn');
 const importBtn = document.getElementById('importBtn');
 const importFile = document.getElementById('importFile');
+function setIcon(btn, iconName, fallbackChar) {
+  if (window.lucide) {
+    btn.innerHTML = '';
+    const i = document.createElement('i'); i.setAttribute('data-lucide', iconName); btn.appendChild(i);
+  } else {
+    btn.textContent = fallbackChar;
+  }
+}
 function setupIO() {
   exportBtn.title = t('exportTitle');
   importBtn.title = t('importTitle');
-  if (window.lucide) {
-    exportBtn.innerHTML = ''; importBtn.innerHTML = '';
-    const i1 = document.createElement('i'); i1.setAttribute('data-lucide', 'cloud-download'); exportBtn.appendChild(i1);
-    const i2 = document.createElement('i'); i2.setAttribute('data-lucide', 'cloud-upload'); importBtn.appendChild(i2);
-  } else {
-    exportBtn.textContent = '\u2913'; importBtn.textContent = '\u2911';
-  }
+  setIcon(exportBtn, 'cloud-download', '\u2913');
+  setIcon(importBtn, 'cloud-upload', '\u2911');
+}
+function setupCP() {
+  copyBtn.title = t('copyTitle');
+  pasteBtn.title = t('pasteTitle');
+  setIcon(copyBtn, 'copy', '\u2398');
+  setIcon(pasteBtn, 'clipboard-paste', '\u2399');
 }
 exportBtn.onclick = () => {
   const data = JSON.stringify(db, null, 2);
@@ -994,6 +1054,7 @@ seedIfEmpty();
 applyTheme();
 setupThemeSwatches();
 setupIO();
+setupCP();
 renderAll();
 refreshIcons();
 saveData();
