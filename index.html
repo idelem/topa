@@ -476,7 +476,35 @@ function applyTheme() {
   document.documentElement.style.setProperty('--fg', db.theme.fg);
   document.documentElement.style.setProperty('--hl', db.theme.hl);
   document.documentElement.style.setProperty('--hover-bg', hexToRgba(db.theme.hl, db.theme.hoverRatio));
+  updateFavicon();
 }
+
+/* ===================== favicon ===================== */
+// Glyph spells T-O-P-A; ink extends to 6..99 in a 105 box (stroke 18), so the viewBox leaves an even 6 margin.
+const GLYPH_D = 'M15,15 L45,15 A15,30 0 0,0 30,45 M75,15 A15,15 0 0,0 60,30 A15,15 0 0,0 75,45 A15,15 0 0,0 90,30 A15,15 0 0,0 75,15 M15,60 L15,90 M60,90 A15,30 0 0,1 75,60 A15,30 0 0,1 90,90 M15,60 L45,60 A30,15 0 0,1 15,75 M90,90 L90,90 L90,90 M30,45 L30,45 L30,45';
+function relLuminance(hex) {
+  let h = hex.replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  const [r, g, b] = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16) / 255)
+    .map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+// light scheme -> the darker of fg/bg, dark scheme -> the lighter one
+function faviconColor() {
+  const a = db.theme.fg, b = db.theme.bg;
+  const aDarker = relLuminance(a) <= relLuminance(b);
+  const dark = aDarker ? a : b, light = aDarker ? b : a;
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? light : dark;
+}
+function updateFavicon() {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 105 105"><path d="${GLYPH_D}" fill="none" stroke="${faviconColor()}" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  let link = document.querySelector('link[rel="icon"]');
+  if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+  link.type = 'image/svg+xml';
+  link.href = 'data:image/svg+xml,' + encodeURIComponent(svg);
+}
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', updateFavicon);
+
 function outputColor(v) { return hexToRgba(db.theme.hl, 0.06 + (v / 9) * 0.94); }
 
 function setupThemeSwatches() {
