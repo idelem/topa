@@ -491,6 +491,7 @@ function relLuminance(hex) {
 }
 // light scheme -> the darker of fg/bg, dark scheme -> the lighter one
 function faviconColor() {
+  return db.theme.hl;
   const a = db.theme.fg, b = db.theme.bg;
   const aDarker = relLuminance(a) <= relLuminance(b);
   const dark = aDarker ? a : b, light = aDarker ? b : a;
