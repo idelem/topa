@@ -481,7 +481,7 @@ function applyTheme() {
 
 /* ===================== favicon ===================== */
 // Glyph spells T-O-P-A; ink extends to 6..99 in a 105 box (stroke 18), so the viewBox leaves an even 6 margin.
-const GLYPH_D = 'M15,15 L45,15 A15,30 0 0,0 30,45 M75,15 A15,15 0 0,0 60,30 A15,15 0 0,0 75,45 A15,15 0 0,0 90,30 A15,15 0 0,0 75,15 M15,60 L15,90 M60,90 A15,30 0 0,1 75,60 A15,30 0 0,1 90,90 M15,60 L45,60 A30,15 0 0,1 15,75 M90,90 L90,90 L90,90 M30,45 L30,45 L30,45';
+const GLYPH_D = 'M15,15 L15,15 L15,75 L45,75 L45,15 L15,15 M15,30 L15,30 L45,30 M15,45 L15,45 L45,45 M15,60 L15,60 L45,60 M30,15 L30,15 L30,75 M60,15 L60,15 L60,15 M60,30 L60,30 L60,30 M60,45 L60,45 L60,45 M60,60 L60,60 L60,60 M60,75 L60,75 L60,75 M75,15 L75,15 L75,15 M75,30 L75,30 L75,30 M75,45 L75,45 L75,45 M75,60 L75,60 L75,60 M75,75 L75,75 L75,75 ';
 function relLuminance(hex) {
   let h = hex.replace('#', '');
   if (h.length === 3) h = h.split('').map(c => c + c).join('');
@@ -497,7 +497,7 @@ function faviconColor() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? light : dark;
 }
 function updateFavicon() {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-5 -5 105 105"><path d="${GLYPH_D}" fill="none" stroke="${faviconColor()}" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"><path d="${GLYPH_D}" fill="none" stroke="${faviconColor()}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
   let link = document.querySelector('link[rel="icon"]');
   if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
   link.type = 'image/svg+xml';
