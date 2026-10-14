@@ -131,6 +131,7 @@ textarea { resize:none; width:100%; }
 /* ---------- notes ---------- */
 .notes-section { flex:1; display:flex; flex-direction:column; min-height:0; }
 .notes-section textarea { flex:1; border:none; background:transparent; padding:8px; margin:0; }
+.notes-section textarea:read-only { cursor:default; }
 
 /* ---------- multi-select mixed state ---------- */
 .mixed-banner { color:var(--dim); font-size:13px; padding:6px; display:flex; justify-content:space-between;
@@ -992,7 +993,7 @@ function renderProjectCol(items) {
       });
       saveData(); renderAll();
     } : null;
-    const listBtn = lucideBtn('list', '\u2261', t('openList'), () => openList({ type: 'project', id }));
+    const listBtn = lucideBtn('chevron-right', '\u203a', t('openList'), () => openList({ type: 'project', id }));
     const extraButtons = archivedRow
       ? [listBtn, lucideBtn('archive-restore', t('restore'), t('restore'), () => { p.archived = false; saveData(); renderAll(); })]
       : [
@@ -1069,7 +1070,7 @@ function renderAreaCol(items) {
         saveData(); renderAll();
       },
       items.length && current === id, onToggle,
-      { confirmDeleteMsg: t('confirmDeleteArea'), extraButtons: [lucideBtn('list', '\u2261', t('openList'), () => openList({ type: 'area', id }))] });
+      { confirmDeleteMsg: t('confirmDeleteArea'), extraButtons: [lucideBtn('chevron-right', '\u203a', t('openList'), () => openList({ type: 'area', id }))] });
     colArea.appendChild(row);
   });
   const add = document.createElement('button'); add.className = 'addbtn'; add.textContent = t('addArea');
@@ -1105,14 +1106,12 @@ function renderOutputNotesCol(items) {
       if (current === v) { btn.classList.add('active'); row.classList.add('active'); }
       if (canTag) btn.onclick = () => { items.forEach(it => { ensureBlock(it.key).output = v; }); saveData(); renderAll(); };
       else btn.classList.add('idle');
-      row.append(btn, lucideBtn('list', '\u2261', t('openList'), () => openList({ type: 'output', value: v })));
+      row.append(btn, lucideBtn('chevron-right', '\u203a', t('openList'), () => openList({ type: 'output', value: v })));
       list.appendChild(row);
     }
     colOutput.appendChild(list);
   }
-  if (!items.length) return;
-
-  // notes
+  // notes (always laid out; read-only when nothing is selected)
   const noteVals = items.map(it => it.block ? it.block.notes || '' : '');
   const noteConsistent = !multi || noteVals.every(v => v === noteVals[0]);
   const notesHead = document.createElement('div'); notesHead.className = 'side-col-head';
@@ -1132,6 +1131,7 @@ function renderOutputNotesCol(items) {
   } else {
     const ta = document.createElement('textarea');
     ta.rows = 6; ta.value = noteVals[0] || '';
+    if (!items.length) ta.readOnly = true;
     ta.oninput = () => { items.forEach(it => { const b = ensureBlock(it.key); b.notes = ta.value; pruneIfEmpty(it.key); }); saveData(); };
     ta.onblur = () => renderTimeline();
     notesWrap.appendChild(ta);
