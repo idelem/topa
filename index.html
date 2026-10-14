@@ -100,8 +100,33 @@ textarea { resize:none; width:100%; }
 
 /* ---------- output list ---------- */
 .output-list { flex:1; display:flex; flex-direction:column; border-bottom:1px solid var(--border-c); min-height:0; }
-.output-list button { flex:1; border:none; border-bottom:1px solid var(--border-c); width:100%; margin:0; min-height:0; }
-.output-list button:last-child { border-bottom:none; }
+.out-row { flex:1; display:flex; align-items:stretch; border-bottom:1px solid var(--border-c); min-height:0; }
+.out-row:last-child { border-bottom:none; }
+.out-row .out-main { flex:1; min-width:0; border:none; margin:0; min-height:0; }
+.out-row .out-main.idle { cursor:default; }
+.out-row .out-main.idle:hover { background:transparent; }
+.out-row .rowbtn { flex:none; border:none; color:var(--dim); padding:0 8px; border-radius:0; }
+.out-row .rowbtn svg { width:14px; height:14px; display:block; }
+.out-row.active .rowbtn { background:var(--hover-bg); }
+
+/* ---------- block list (single-condition filter view, shown inside the column itself) ---------- */
+.list-view { flex:1 1 0; min-height:0; display:flex; flex-direction:column; }
+.list-head { flex:none; display:flex; align-items:stretch; border-bottom:1px solid var(--border-c); }
+.list-head .rowbtn { flex:none; border:none; border-right:1px solid var(--border-c); border-radius:0; color:var(--dim); padding:0 8px; }
+.list-head .rowbtn svg { width:14px; height:14px; display:block; }
+.list-swatch { flex:none; width:30px; border-right:1px solid var(--border-c); }
+.list-title { flex:1; min-width:0; padding:6px 8px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.list-stats { flex:none; padding:5px 8px; color:var(--dim); border-bottom:1px solid var(--border-c); }
+.list-body { flex:1 1 0; min-height:0; overflow-y:auto; display:flex; flex-direction:column; }
+.seg-date { flex:none; display:flex; justify-content:space-between; gap:6px; padding:3px 8px; color:var(--dim);
+  background:color-mix(in srgb, var(--fg) 6%, transparent); border-bottom:1px solid var(--border-c); }
+.seg { flex:none; padding:4px 8px; cursor:pointer; border-bottom:1px solid var(--border-c); min-width:0; }
+.seg:hover, .seg.active { background:var(--hover-bg); }
+.seg-l1 { display:flex; justify-content:space-between; gap:6px; }
+.seg-dur { color:var(--dim); }
+.seg-l2 { color:var(--dim); font-size:11px; line-height:1.3; overflow-wrap:anywhere; }
+.seg-l3 { font-size:11px; line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.locked .tag-row { cursor:default; }
 
 /* ---------- notes ---------- */
 .notes-section { flex:1; display:flex; flex-direction:column; min-height:0; }
@@ -224,7 +249,12 @@ const STRINGS = {
     addProject: '+ 新建项目', addArea: '+ 新建领域',
     pin: '置顶', archive: '归档', restore: '恢复',
     newProjectName: '新项目', newAreaName: '新领域',
-    hexPlaceholder: '#rrggbb'
+    hexPlaceholder: '#rrggbb',
+    openList: '查看相关时间块', back: '返回', listEmpty: '没有相关时间块',
+    listStatsProject: (ph, h, avg) => `PH ${ph} · ${h}h · 平均 ${avg}`,
+    listStatsHours: (h) => `${h}h`,
+    outputTitle: (v) => `output ${v}`,
+    weekday: (i) => '周' + '日一二三四五六'[i]
   }
 };
 const LOCALE = 'zh';
@@ -277,6 +307,8 @@ let currentDate = todayStr();
 let selected = new Set();
 let dragging = false, dragMoved = false, dragStartIdx = null, dragBaseSelection = new Set();
 let mobileActiveCol = 'output';
+let listFilter = null;        // null | {type:'project'|'area', id} | {type:'output', value}
+let resetListScroll = false;  // set when entering/leaving list mode so the column starts at the top
 let unlocked = { project: false, area: false, output: false, notes: false };
 
 function idxToKey(idx) { return blockKey(currentDate, Math.floor(idx / 4), idx % 4); }
@@ -782,14 +814,149 @@ pasteBtn.onclick = pasteToSelectedBlocks;
 function renderSidePanel() {
   const items = selectedBlocks();
   updateSelInfo();
+  // the list re-renders on every selection change; keep its scroll position unless we just entered/left it
+  const sc = (el) => { const x = el.querySelector('.list-body'); return x ? x.scrollTop : 0; };
+  const keep = resetListScroll ? { p: 0, a: 0, o: 0 } : { p: sc(colProject), a: sc(colArea), o: sc(colOutput) };
+  resetListScroll = false;
   renderProjectCol(items);
   renderAreaCol(items);
   renderOutputNotesCol(items);
+  [[colProject, keep.p], [colArea, keep.a], [colOutput, keep.o]].forEach(([el, v]) => {
+    const x = el.querySelector('.list-body'); if (x) x.scrollTop = v;
+  });
+  refreshIcons();
+}
+
+/* ===================== block list (single-condition filter view) ===================== */
+// The core is queryable by a filter object so multi-condition filtering can be added later by filling more fields.
+function activeFilter(type) {
+  if (!listFilter || listFilter.type !== type) return null;
+  const ok = (type === 'project' && db.projects[listFilter.id]) ||
+             (type === 'area' && db.areas[listFilter.id]) ||
+             (type === 'output' && listFilter.value >= 1 && listFilter.value <= 9);
+  if (!ok) { listFilter = null; return null; }
+  return listFilter;
+}
+function openList(f) { listFilter = f; resetListScroll = true; renderSidePanel(); }
+function closeList() { listFilter = null; resetListScroll = true; renderSidePanel(); }
+
+function listMatch(b, f) {
+  if (f.type === 'project') return b.projectIds.includes(f.id);
+  if (f.type === 'area') return b.areaId === f.id;
+  return b.output === f.value;
+}
+// a segment breaks wherever a field shown on its second line changes (notes never break a segment)
+function listSig(b, f) {
+  const projs = b.projectIds.filter(id => db.projects[id]).sort().join(',');
+  const area = (b.areaId && db.areas[b.areaId]) ? b.areaId : '';
+  const out = b.output == null ? '' : String(b.output);
+  if (f.type === 'project') return area + '|' + out;
+  if (f.type === 'area') return projs + '|' + out;
+  return projs + '|' + area;
+}
+function buildSegments(f) {
+  const rows = [];
+  Object.keys(db.blocks).sort().forEach(key => {
+    const b = db.blocks[key];
+    if (!listMatch(b, f)) return;
+    rows.push({ key, b, date: key.slice(0, 10), idx: (+key.slice(11, 13)) * 4 + (+key.slice(14)) });
+  });
+  const segs = []; let cur = null, ph = 0;
+  rows.forEach(r => {
+    ph += (r.b.output != null ? r.b.output : 0) * 0.25;   // same as the per-day task PH, summed over days
+    const sig = listSig(r.b, f);
+    if (cur && cur.date === r.date && r.idx === cur.endIdx + 1 && sig === cur.sig) {
+      cur.endIdx = r.idx; cur.keys.push(r.key); cur.blocks.push(r.b);
+    } else {
+      cur = { date: r.date, startIdx: r.idx, endIdx: r.idx, sig, keys: [r.key], blocks: [r.b] };
+      segs.push(cur);
+    }
+  });
+  return { segs, count: rows.length, ph };
+}
+function fmtTime(idx) { const m = idx * 15; return pad2(Math.floor(m / 60)) + ':' + pad2(m % 60); }
+function fmtNum(x, d) { return String(+x.toFixed(d)); }
+function segDetail(seg, f) {
+  const b = seg.blocks[0];
+  const parts = [];
+  const projNames = b.projectIds.map(id => db.projects[id] && db.projects[id].name).filter(Boolean);
+  const areaName = (b.areaId && db.areas[b.areaId]) ? db.areas[b.areaId].name : null;
+  if (f.type !== 'project' && projNames.length) parts.push(projNames.join('/'));
+  if (f.type !== 'area' && areaName) parts.push(areaName);
+  if (f.type !== 'output' && b.output != null) parts.push(t('outputTitle', b.output));
+  return parts.join(' \u00b7 ');
+}
+
+function buildListView(f) {
+  const { segs, count, ph } = buildSegments(f);
+  const view = document.createElement('div'); view.className = 'list-view';
+
+  const head = document.createElement('div'); head.className = 'list-head';
+  head.appendChild(lucideBtn('arrow-left', '\u2190', t('back'), closeList));
+  const sw = document.createElement('span'); sw.className = 'list-swatch';
+  let title;
+  if (f.type === 'project') { const p = db.projects[f.id]; sw.style.backgroundColor = p.color; title = p.name; }
+  else if (f.type === 'area') { const a = db.areas[f.id]; sw.style.backgroundColor = a.color; title = a.name; }
+  else { sw.style.backgroundColor = outputColor(f.value); title = t('outputTitle', f.value); }
+  const ttl = document.createElement('span'); ttl.className = 'list-title'; ttl.textContent = title; ttl.title = title;
+  head.append(sw, ttl);
+  view.appendChild(head);
+
+  const hours = count * 0.25;
+  const stats = document.createElement('div'); stats.className = 'list-stats';
+  stats.textContent = f.type === 'project'
+    ? t('listStatsProject', fmtNum(ph, 2), fmtNum(hours, 2), fmtNum(count ? ph / hours : 0, 1))
+    : t('listStatsHours', fmtNum(hours, 2));
+  view.appendChild(stats);
+
+  const body = document.createElement('div'); body.className = 'list-body';
+  if (!segs.length) {
+    const e = document.createElement('div'); e.className = 'empty-hint'; e.textContent = t('listEmpty');
+    body.appendChild(e);
+  } else {
+    const byDate = {};
+    segs.forEach(sg => { (byDate[sg.date] = byDate[sg.date] || []).push(sg); });
+    Object.keys(byDate).sort().reverse().forEach(date => {   // newest day first, chronological within a day
+      const day = byDate[date];
+      const n = day.reduce((acc, sg) => acc + sg.keys.length, 0);
+      const dh = document.createElement('div'); dh.className = 'seg-date';
+      const l = document.createElement('span'); l.textContent = `${date} ${t('weekday', new Date(date + 'T00:00:00').getDay())}`;
+      const r = document.createElement('span'); r.textContent = t('listStatsHours', fmtNum(n * 0.25, 2));
+      dh.append(l, r);
+      body.appendChild(dh);
+      day.forEach(sg => body.appendChild(buildSegRow(sg, f)));
+    });
+  }
+  view.appendChild(body);
+  return view;
+}
+function buildSegRow(seg, f) {
+  const row = document.createElement('div'); row.className = 'seg';
+  if (selected.size === seg.keys.length && seg.keys.every(k => selected.has(k))) row.classList.add('active');
+  const l1 = document.createElement('div'); l1.className = 'seg-l1';
+  const time = document.createElement('span'); time.textContent = `${fmtTime(seg.startIdx)}\u2013${fmtTime(seg.endIdx + 1)}`;
+  const dur = document.createElement('span'); dur.className = 'seg-dur'; dur.textContent = t('listStatsHours', fmtNum(seg.keys.length * 0.25, 2));
+  l1.append(time, dur); row.appendChild(l1);
+  const detail = segDetail(seg, f);
+  if (detail) { const l2 = document.createElement('div'); l2.className = 'seg-l2'; l2.textContent = detail; row.appendChild(l2); }
+  const note = seg.blocks.map(b => b.notes).find(Boolean);
+  if (note) { const l3 = document.createElement('div'); l3.className = 'seg-l3'; l3.textContent = note; l3.title = note; row.appendChild(l3); }
+  row.onclick = () => jumpToSegment(seg);
+  return row;
+}
+// the whole day fits on screen, so jumping = switch the date and select the segment's blocks (no scrolling needed)
+function jumpToSegment(seg) {
+  currentDate = seg.date;
+  selected = new Set(seg.keys);
+  unlocked = { project: false, area: false, output: false, notes: false };
+  renderAll();
 }
 
 /* ---- PROJECT (registry always visible; toggling needs a selection) ---- */
 function renderProjectCol(items) {
   colProject.innerHTML = '';
+  const pf = activeFilter('project');
+  if (pf) { colProject.appendChild(buildListView(pf)); return; }
   const multi = items.length > 1;
   let consistent = true, activeSet = new Set();
   if (items.length) {
@@ -797,14 +964,15 @@ function renderProjectCol(items) {
     consistent = !multi || sigs.every(s => s === sigs[0]);
     if (consistent) activeSet = new Set(items[0].block ? items[0].block.projectIds : []);
   }
-  if (items.length && multi && !consistent && !unlocked.project) {
+  const locked = !!(items.length && multi && !consistent && !unlocked.project);
+  colProject.classList.toggle('locked', locked);
+  if (locked) {
     const banner = document.createElement('div'); banner.className = 'mixed-banner';
     banner.innerHTML = `<span>${t('mixed')}</span><span class="actions">
       <button id="pjEdit">${t('edit')}</button><button id="pjMerge">${t('merge')}</button></span>`;
     colProject.appendChild(banner);
     banner.querySelector('#pjEdit').onclick = () => confirmThen(t('confirmOverwrite'), () => { unlocked.project = true; renderSidePanel(); });
     banner.querySelector('#pjMerge').onclick = () => confirmThen(t('confirmOverwrite'), () => mergeProjects(items));
-    return;
   }
 
   const entries = Object.entries(db.projects);
@@ -813,7 +981,7 @@ function renderProjectCol(items) {
   const archived = entries.filter(([, p]) => p.archived);
 
   function buildProjectRow(id, p, archivedRow) {
-    const onToggle = (items.length && !archivedRow) ? () => {
+    const onToggle = (items.length && !locked && !archivedRow) ? () => {
       const turnOn = !activeSet.has(id);
       items.forEach(it => {
         const b = ensureBlock(it.key);
@@ -824,13 +992,15 @@ function renderProjectCol(items) {
       });
       saveData(); renderAll();
     } : null;
+    const listBtn = lucideBtn('list', '\u2261', t('openList'), () => openList({ type: 'project', id }));
     const extraButtons = archivedRow
-      ? [lucideBtn('archive-restore', t('restore'), t('restore'), () => { p.archived = false; saveData(); renderAll(); })]
+      ? [listBtn, lucideBtn('archive-restore', t('restore'), t('restore'), () => { p.archived = false; saveData(); renderAll(); })]
       : [
+          listBtn,
           lucideBtn('pin', p.pinned ? '\u2605' : '\u2606', t('pin'), () => { p.pinned = !p.pinned; saveData(); renderAll(); }),
           lucideBtn('archive', t('archive'), t('archive'), () => { p.archived = true; p.pinned = false; saveData(); renderAll(); })
         ];
-    if (!archivedRow && p.pinned) extraButtons[0].classList.add('pinned');
+    if (!archivedRow && p.pinned) extraButtons[1].classList.add('pinned');
     const row = buildTagRow(id, p,
       (c) => { p.color = c; saveData(); renderTimeline(); },
       (v) => { p.name = v.trim() || p.name; saveData(); renderTimeline(); },
@@ -865,6 +1035,8 @@ function mergeProjects(items) {
 /* ---- AREA ---- */
 function renderAreaCol(items) {
   colArea.innerHTML = '';
+  const af = activeFilter('area');
+  if (af) { colArea.appendChild(buildListView(af)); return; }
   const multi = items.length > 1;
   let consistent = true, current = null;
   if (items.length) {
@@ -872,16 +1044,17 @@ function renderAreaCol(items) {
     consistent = !multi || vals.every(v => v === vals[0]);
     if (consistent) current = vals[0];
   }
-  if (items.length && multi && !consistent && !unlocked.area) {
+  const locked = !!(items.length && multi && !consistent && !unlocked.area);
+  colArea.classList.toggle('locked', locked);
+  if (locked) {
     const banner = document.createElement('div'); banner.className = 'mixed-banner';
     banner.innerHTML = `<span>${t('mixed')}</span><span class="actions"><button id="arEdit">${t('edit')}</button></span>`;
     colArea.appendChild(banner);
     banner.querySelector('#arEdit').onclick = () => confirmThen(t('confirmOverwrite'), () => { unlocked.area = true; renderSidePanel(); });
-    return;
   }
 
   Object.entries(db.areas).forEach(([id, a]) => {
-    const onToggle = items.length ? () => {
+    const onToggle = (items.length && !locked) ? () => {
       const turnOn = current !== id;
       items.forEach(it => { const b = ensureBlock(it.key); b.areaId = turnOn ? id : null; pruneIfEmpty(it.key); });
       saveData(); renderAll();
@@ -896,7 +1069,7 @@ function renderAreaCol(items) {
         saveData(); renderAll();
       },
       items.length && current === id, onToggle,
-      { confirmDeleteMsg: t('confirmDeleteArea') });
+      { confirmDeleteMsg: t('confirmDeleteArea'), extraButtons: [lucideBtn('list', '\u2261', t('openList'), () => openList({ type: 'area', id }))] });
     colArea.appendChild(row);
   });
   const add = document.createElement('button'); add.className = 'addbtn'; add.textContent = t('addArea');
@@ -904,32 +1077,40 @@ function renderAreaCol(items) {
   colArea.appendChild(add);
 }
 
-/* ---- OUTPUT + NOTES (merged, blank without selection) ---- */
+/* ---- OUTPUT + NOTES (output values always visible; notes need a selection) ---- */
 function renderOutputNotesCol(items) {
   colOutput.innerHTML = '';
-  if (!items.length) return;
-
   const multi = items.length > 1;
 
   // output
   const outVals = items.map(it => it.block ? it.block.output : null);
   const outConsistent = !multi || outVals.every(v => v === outVals[0]);
-  if (multi && !outConsistent && !unlocked.output) {
-    const banner = document.createElement('div'); banner.className = 'mixed-banner';
-    banner.innerHTML = `<span>${t('mixed')}</span><span class="actions"><button id="opEdit">${t('edit')}</button></span>`;
-    colOutput.appendChild(banner);
-    banner.querySelector('#opEdit').onclick = () => confirmThen(t('confirmOverwrite'), () => { unlocked.output = true; renderSidePanel(); });
+  const outLocked = multi && !outConsistent && !unlocked.output;
+  const of = activeFilter('output');
+  if (of) {
+    colOutput.appendChild(buildListView(of));
   } else {
-    const current = outVals[0];
+    if (outLocked) {
+      const banner = document.createElement('div'); banner.className = 'mixed-banner';
+      banner.innerHTML = `<span>${t('mixed')}</span><span class="actions"><button id="opEdit">${t('edit')}</button></span>`;
+      colOutput.appendChild(banner);
+      banner.querySelector('#opEdit').onclick = () => confirmThen(t('confirmOverwrite'), () => { unlocked.output = true; renderSidePanel(); });
+    }
+    const canTag = items.length > 0 && !outLocked;
+    const current = canTag ? outVals[0] : null;
     const list = document.createElement('div'); list.className = 'output-list';
     for (let v = 9; v >= 1; v--) {
-      const btn = document.createElement('button'); btn.textContent = v;
-      if (current === v) btn.classList.add('active');
-      btn.onclick = () => { items.forEach(it => { ensureBlock(it.key).output = v; }); saveData(); renderAll(); };
-      list.appendChild(btn);
+      const row = document.createElement('div'); row.className = 'out-row';
+      const btn = document.createElement('button'); btn.className = 'out-main'; btn.textContent = v;
+      if (current === v) { btn.classList.add('active'); row.classList.add('active'); }
+      if (canTag) btn.onclick = () => { items.forEach(it => { ensureBlock(it.key).output = v; }); saveData(); renderAll(); };
+      else btn.classList.add('idle');
+      row.append(btn, lucideBtn('list', '\u2261', t('openList'), () => openList({ type: 'output', value: v })));
+      list.appendChild(row);
     }
     colOutput.appendChild(list);
   }
+  if (!items.length) return;
 
   // notes
   const noteVals = items.map(it => it.block ? it.block.notes || '' : '');
