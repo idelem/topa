@@ -155,6 +155,34 @@ textarea { resize:none; width:100%; }
   .side-col.mobile-active { display:flex; }
   .mobile-tabs { display:flex; }
 }
+
+/* ---------- year heatmap pop-up ---------- */
+.yr-overlay { position:fixed; inset:0; z-index:50; background:color-mix(in srgb, var(--bg) 80%, transparent); display:none; flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
+.yr-overlay.open { display:flex; }
+.yr-head { flex:none; display:flex; align-items:stretch; border-bottom:1px solid var(--border-c); flex-wrap:wrap; background:var(--bg); }
+.yr-head > button, .yr-head > span, .yr-head > input { border:none; border-right:1px solid var(--border-c); border-radius:0;
+  display:flex; align-items:center; padding:6px 10px; margin:0; }
+.yr-head .yr-year { font-weight:bold; letter-spacing:1px; }
+.yr-head .yr-cap { width:56px; text-align:center; -moz-appearance:textfield; background:transparent; }
+.yr-head .yr-cap::-webkit-inner-spin-button, .yr-head .yr-cap::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+.yr-head .yr-label { color:var(--dim); }
+.yr-head .yr-hover { border-right:none; color:var(--dim); }
+.yr-head .yr-close { border-right:none; border-left:1px solid var(--border-c); }
+.yr-body { flex:1; min-height:0; display:flex; }
+.yr-grid { flex:1; min-width:0; min-height:0; container-type:inline-size; display:grid;
+  grid-template-columns:repeat(27,1fr); grid-template-rows:repeat(14,1fr); grid-auto-flow:column;
+  border-left:1px solid var(--border-c); border-top:1px solid var(--border-c); }
+.yr-cell { border-right:1px solid var(--border-c); border-bottom:1px solid var(--border-c); min-width:0; min-height:0; cursor:pointer;
+  position:relative; overflow:hidden; }
+.yr-cell .d { position:absolute; top:2px; left:4px; font-size:10px; line-height:1; color:var(--dim); }
+.yr-cell .p { position:absolute; right:4px; bottom:2px; font-size:12px; line-height:1; color:var(--fg); }
+.yr-cell.mend { border-bottom:2px solid color-mix(in srgb, var(--fg) 75%, transparent); }
+@container (max-width: 700px) { .yr-cell .p { display:none; } .yr-cell .d { font-size:8px; left:2px; } }
+.yr-cell.wk { background-color:color-mix(in srgb, var(--fg) 7%, transparent); }
+.yr-cell.out { border-color:transparent; cursor:default; }
+.yr-cell.cur { box-shadow:inset 0 0 0 1px var(--hl); }
+.yr-cell:not(.out):hover { box-shadow:inset 0 0 0 1px var(--fg); }
 </style>
 </head>
 <body>
@@ -180,7 +208,7 @@ textarea { resize:none; width:100%; }
       <button id="copyBtn" disabled></button>
       <button id="pasteBtn" disabled></button>
     </div>
-    <div class="btngroup" id="phGroup"><span id="phInfo"></span></div>
+    <div class="btngroup" id="phGroup"><span id="phInfo"></span><button id="yearBtn"></button></div>
     <div class="btngroup" id="ioGroup">
       <button id="exportBtn"></button>
       <button id="importBtn"></button>
@@ -255,7 +283,10 @@ const STRINGS = {
     listStatsProject: (ph, h, avg) => `PH ${ph} · ${h}h · 平均 ${avg}`,
     listStatsHours: (h) => `${h}h`,
     outputTitle: (v) => `output ${v}`,
-    weekday: (i) => '周' + '日一二三四五六'[i]
+    weekday: (i) => '周' + '日一二三四五六'[i],
+    yearBtnTitle: '年度热力图', yearCap: 'cap', yearClose: '关闭',
+    yearTotal: (v) => `总 PH ${v}`, yearAvg: (v) => `日均 ${v}`,
+    yearHover: (d, wd, ph) => `${d} ${wd} · PH ${ph}`
   }
 };
 const LOCALE = 'zh';
@@ -1188,6 +1219,123 @@ function syncMobileTabs() {
   [...mobileTabs.children].forEach(b => b.classList.toggle('active', b.dataset.col === mobileActiveCol));
   document.querySelectorAll('.side-col').forEach(c => c.classList.toggle('mobile-active', c.dataset.col === mobileActiveCol));
 }
+
+/* ===================== year heatmap ===================== */
+// 27 columns x 14 rows; each column = two full weeks (Mon-start), first column starts on the Monday of the week containing Jan 1.
+// Intensity = min(ph / cap, 1) in the theme highlight color; ph 0 / no data render the same (no fill).
+const yearBtn = document.getElementById('yearBtn');
+const yrOverlay = document.createElement('div');
+yrOverlay.className = 'yr-overlay';
+yrOverlay.innerHTML = `
+  <div class="yr-head">
+    <button class="yr-prev">&lt;</button><span class="yr-year"></span><button class="yr-next">&gt;</button>
+    <span class="yr-total"></span><span class="yr-avg"></span>
+    <span class="yr-label">${t('yearCap')}</span><input class="yr-cap" type="number" min="1" step="5">
+    <span class="spacer" style="flex:1;border-right:none;"></span>
+    <span class="yr-hover"></span>
+    <button class="yr-close" title="${t('yearClose')}">\u00d7</button>
+  </div>
+  <div class="yr-body"><div class="yr-grid"></div></div>`;
+document.body.appendChild(yrOverlay);
+const yrYear = yrOverlay.querySelector('.yr-year');
+const yrTotal = yrOverlay.querySelector('.yr-total');
+const yrAvg = yrOverlay.querySelector('.yr-avg');
+const yrCap = yrOverlay.querySelector('.yr-cap');
+const yrHover = yrOverlay.querySelector('.yr-hover');
+const yrGrid = yrOverlay.querySelector('.yr-grid');
+let yearOpen = false, yearView = new Date().getFullYear();
+
+function heatCap() { const c = +db.meta.heatCap; return c > 0 ? c : 40; }
+function dateStrOf(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
+
+function renderYear() {
+  const y = yearView;
+  const jan1 = new Date(y, 0, 1);
+  const startOff = (jan1.getDay() + 6) % 7;          // Monday = 0
+  const cap = heatCap();
+  yrYear.textContent = y;
+  yrCap.value = cap;
+  yrGrid.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  let total = 0, active = 0;
+  const cur = currentDate;
+  let prevCell = null;
+  for (let i = 0; i < 27 * 14; i++) {
+    const d = new Date(y, 0, 1 - startOff + i);
+    const cell = document.createElement('div');
+    cell.className = 'yr-cell';
+    if (d.getFullYear() !== y) { cell.classList.add('out'); frag.appendChild(cell); prevCell = cell; continue; }
+    const ds = dateStrOf(d);
+    const ph = computeProductivityHours(ds);
+    if (ph > 0) { total += ph; active++; }
+    if (i % 7 >= 5) cell.classList.add('wk');          // Sat / Sun (rows 5,6 of each week)
+    if (ds === cur) cell.classList.add('cur');
+    if (ph > 0) {
+      const c = hexToRgba(db.theme.hl, 0.06 + Math.min(ph / cap, 1) * 0.94);
+      cell.style.backgroundImage = `linear-gradient(${c},${c})`;
+    }
+    cell.dataset.date = ds;
+    cell.dataset.ph = String(+ph.toFixed(2));
+    cell.dataset.wd = String(d.getDay());
+    cell.innerHTML = `<span class="d">${d.getDate()}</span>` + (ph > 0 ? `<span class="p">${+ph.toFixed(1)}</span>` : '');
+    // month boundary: thicker horizontal line, only when the 1st sits below the top of its column (otherwise the break is a column edge)
+    if (d.getDate() === 1 && d.getMonth() > 0 && i % 14 !== 0 && prevCell) prevCell.classList.add('mend');
+    frag.appendChild(cell);
+    prevCell = cell;
+  }
+  yrGrid.appendChild(frag);
+  yrTotal.textContent = t('yearTotal', String(+total.toFixed(1)));
+  yrAvg.textContent = t('yearAvg', String(active ? +(total / active).toFixed(1) : 0));
+  yrHover.textContent = '';
+}
+function openYear() { yearView = +currentDate.slice(0, 4); yearOpen = true; yrOverlay.classList.add('open'); renderYear(); }
+function closeYear() { yearOpen = false; yrOverlay.classList.remove('open'); }
+function shiftYear(d) { yearView += d; renderYear(); }
+
+yearBtn.title = t('yearBtnTitle');
+setIcon(yearBtn, 'calendar-days', '\u25a6');
+yearBtn.onclick = openYear;
+yrOverlay.querySelector('.yr-prev').onclick = () => shiftYear(-1);
+yrOverlay.querySelector('.yr-next').onclick = () => shiftYear(1);
+yrOverlay.querySelector('.yr-close').onclick = closeYear;
+yrCap.addEventListener('change', () => {
+  const v = parseFloat(yrCap.value);
+  db.meta.heatCap = v > 0 ? v : 40; saveData(); renderYear();
+});
+yrGrid.addEventListener('mouseover', (e) => {
+  const c = e.target.closest('.yr-cell');
+  yrHover.textContent = (c && c.dataset.date) ? t('yearHover', c.dataset.date, t('weekday', +c.dataset.wd), c.dataset.ph) : '';
+});
+yrGrid.addEventListener('mouseleave', () => { yrHover.textContent = ''; });
+yrGrid.addEventListener('click', (e) => {
+  const c = e.target.closest('.yr-cell');
+  if (!c || !c.dataset.date) return;
+  closeYear();
+  currentDate = c.dataset.date;
+  clearSelection();
+});
+yrOverlay.addEventListener('click', (e) => { if (e.target === yrOverlay || e.target.classList.contains('yr-body')) closeYear(); });
+// wheel switches year (down = next year); swallowed here so nothing underneath ever sees it
+let yrWheelAcc = 0, yrWheelLock = 0;
+yrOverlay.addEventListener('wheel', (e) => {
+  e.preventDefault(); e.stopPropagation();
+  const now = Date.now();
+  if (now < yrWheelLock) return;
+  yrWheelAcc += e.deltaY * (e.deltaMode === 1 ? 33 : 1);
+  if (Math.abs(yrWheelAcc) < 50) return;
+  const dir = yrWheelAcc > 0 ? 1 : -1;
+  yrWheelAcc = 0; yrWheelLock = now + 250;
+  shiftYear(dir);
+}, { passive: false });
+// capture phase so the app's own Esc / Ctrl+C / Ctrl+V handlers never fire while the pop-up is open
+document.addEventListener('keydown', (e) => {
+  if (!yearOpen) return;
+  const inInput = e.target && e.target.tagName === 'INPUT';
+  if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeYear(); return; }
+  if (!inInput && e.key === 'ArrowLeft') { e.preventDefault(); shiftYear(-1); }
+  else if (!inInput && e.key === 'ArrowRight') { e.preventDefault(); shiftYear(1); }
+  if (!inInput) e.stopImmediatePropagation();
+}, true);
 
 /* ===================== bootstrap ===================== */
 /* ===================== import / export ===================== */
