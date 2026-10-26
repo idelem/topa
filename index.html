@@ -164,8 +164,8 @@ textarea { resize:none; width:100%; }
 .yr-head > button, .yr-head > span, .yr-head > input { border:none; border-right:1px solid var(--border-c); border-radius:0;
   display:flex; align-items:center; padding:6px 10px; margin:0; }
 .yr-head .yr-year { font-weight:bold; letter-spacing:1px; }
-.yr-head .yr-cap { width:56px; text-align:center; -moz-appearance:textfield; background:transparent; }
-.yr-head .yr-cap::-webkit-inner-spin-button, .yr-head .yr-cap::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
+.yr-head .yr-cap, .yr-head .yr-bga { width:56px; text-align:center; -moz-appearance:textfield; background:transparent; }
+.yr-head .yr-bga::-webkit-inner-spin-button, .yr-head .yr-bga::-webkit-outer-spin-button, .yr-head .yr-cap::-webkit-inner-spin-button, .yr-head .yr-cap::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
 .yr-head .yr-label { color:var(--dim); }
 .yr-head .yr-hover { border-right:none; color:var(--dim); }
 .yr-head .yr-close { border-right:none; border-left:1px solid var(--border-c); }
@@ -180,7 +180,7 @@ textarea { resize:none; width:100%; }
 .yr-cell.mend { border-bottom:2px solid color-mix(in srgb, var(--fg) 75%, transparent); }
 @container (max-width: 700px) { .yr-cell .p { display:none; } .yr-cell .d { font-size:8px; left:2px; } }
 .yr-cell.wk { background-color:color-mix(in srgb, var(--fg) 7%, transparent); }
-.yr-cell.out { border-color:transparent; cursor:default; }
+.yr-cell.out { background:var(--fg); border-color:var(--fg); cursor:default; }
 .yr-cell.cur { box-shadow:inset 0 0 0 1px var(--hl); }
 .yr-cell:not(.out):hover { box-shadow:inset 0 0 0 1px var(--fg); }
 </style>
@@ -284,7 +284,7 @@ const STRINGS = {
     listStatsHours: (h) => `${h}h`,
     outputTitle: (v) => `output ${v}`,
     weekday: (i) => '周' + '日一二三四五六'[i],
-    yearBtnTitle: '年度热力图', yearCap: 'cap', yearClose: '关闭',
+    yearBtnTitle: '年度热力图', yearCap: 'cap', yearBg: 'bg%', yearClose: '关闭',
     yearTotal: (v) => `总 PH ${v}`, yearAvg: (v) => `日均 ${v}`,
     yearHover: (d, wd, ph) => `${d} ${wd} · PH ${ph}`
   }
@@ -1231,6 +1231,7 @@ yrOverlay.innerHTML = `
     <button class="yr-prev">&lt;</button><span class="yr-year"></span><button class="yr-next">&gt;</button>
     <span class="yr-total"></span><span class="yr-avg"></span>
     <span class="yr-label">${t('yearCap')}</span><input class="yr-cap" type="number" min="1" step="5">
+    <span class="yr-label">${t('yearBg')}</span><input class="yr-bga" type="number" min="0" max="100" step="5">
     <span class="spacer" style="flex:1;border-right:none;"></span>
     <span class="yr-hover"></span>
     <button class="yr-close" title="${t('yearClose')}">\u00d7</button>
@@ -1241,10 +1242,13 @@ const yrYear = yrOverlay.querySelector('.yr-year');
 const yrTotal = yrOverlay.querySelector('.yr-total');
 const yrAvg = yrOverlay.querySelector('.yr-avg');
 const yrCap = yrOverlay.querySelector('.yr-cap');
+const yrBga = yrOverlay.querySelector('.yr-bga');
 const yrHover = yrOverlay.querySelector('.yr-hover');
 const yrGrid = yrOverlay.querySelector('.yr-grid');
 let yearOpen = false, yearView = new Date().getFullYear();
 
+function heatBg() { const v = db.meta.heatBg; return (v >= 0 && v <= 100) ? v : 80; }
+function applyYearBg() { yrOverlay.style.background = `color-mix(in srgb, var(--bg) ${heatBg()}%, transparent)`; yrBga.value = heatBg(); }
 function heatCap() { const c = +db.meta.heatCap; return c > 0 ? c : 40; }
 function dateStrOf(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
 
@@ -1288,7 +1292,7 @@ function renderYear() {
   yrAvg.textContent = t('yearAvg', String(active ? +(total / active).toFixed(1) : 0));
   yrHover.textContent = '';
 }
-function openYear() { yearView = +currentDate.slice(0, 4); yearOpen = true; yrOverlay.classList.add('open'); renderYear(); }
+function openYear() { yearView = +currentDate.slice(0, 4); yearOpen = true; applyYearBg(); yrOverlay.classList.add('open'); renderYear(); }
 function closeYear() { yearOpen = false; yrOverlay.classList.remove('open'); }
 function shiftYear(d) { yearView += d; renderYear(); }
 
@@ -1301,6 +1305,11 @@ yrOverlay.querySelector('.yr-close').onclick = closeYear;
 yrCap.addEventListener('change', () => {
   const v = parseFloat(yrCap.value);
   db.meta.heatCap = v > 0 ? v : 40; saveData(); renderYear();
+});
+yrBga.addEventListener('input', () => {
+  const v = parseFloat(yrBga.value);
+  if (!(v >= 0 && v <= 100)) return;
+  db.meta.heatBg = v; saveData(); applyYearBg();
 });
 yrGrid.addEventListener('mouseover', (e) => {
   const c = e.target.closest('.yr-cell');
